@@ -1,0 +1,10 @@
+[submodule "components/lvgl"]
+	path = components/lvgl
+	url = https://github.com/lvgl/lvgl.git
+[submodule "components/ftplib/ftplib"]
+	path = components/ftplib/ftplib
+	url = https://github.com/disorder/ftplib
+	branch = esp
+[submodule "components/lvgl_esp32_drivers"]
+	path = components/lvgl_esp32_drivers
+	url = https://github.com/disorder/lvgl_esp32_drivers

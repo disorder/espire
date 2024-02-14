@@ -1,0 +1,268 @@
+menu "ESP32 framework"
+
+menu "Essentials"
+
+config ESP_API_KEY
+    string "HTTP API key (empty = no authorization)"
+    default ""
+
+config ESP_CONTROLLER_IP
+    string "Controller IP preconfigured value or localhost until set with HTTP API/auto"
+    default "127.0.0.1"
+
+config ESP_WIFI_SSID
+    string "WIFI SSID"
+    default ""
+
+config ESP_WIFI_PASSWORD
+    string "WIFI password"
+    default ""
+
+config ESP_WIFI_COUNTRY_CODE
+    string "WiFi country code"
+    default "01"
+
+config ESP_PING_ONLINE_IP
+    string "IP address for internet connection ping"
+    default "1.1.1.1"
+
+config ESP_TZ
+    string "Timezone definition"
+    default "CET-1CEST,M3.5.0,M10.5.0/3"
+
+config ESP_NTP_SERVER1
+    string "NTP server 1"
+    default "pool.ntp.org"
+
+config ESP_NTP_SERVER2
+    string "NTP server 2"
+    default "10.0.0.1"
+    help
+        Use local NTP server to be independent of internet connection
+
+endmenu
+
+menu "Customization"
+
+config ESP_TEMP_PERIOD_S
+    int "Temperature update period (in seconds)"
+    default "60"
+
+config ESP_RELAY_CNT
+    int "Relay count"
+    default "0"
+
+config ESP_BUTTON_REPEAT_MS
+    int "Button repeat delay (in ms)"
+    default "100"
+
+config ESP_BUTTON_LONG_MS
+    int "Button long press delay (in ms)"
+    default "1000"
+
+config ESP_HEAP_PERIOD_S
+    int "Heap memory check period (in seconds)"
+    default "60"
+
+config ESP_HEAP_PERIOD_INFO_S
+    int "Heap memory check logging period (in seconds)"
+    default "60"
+
+config ESP_HEAP_WARN_DECREASE_B
+    int "Heap memory warning decrease"
+    default "1024"
+
+config ESP_HEAP_REBOOT_B
+    int "Heap low memory for reboot trigger"
+    default "5000"
+
+endmenu
+
+menu "Automatic remote configuration"
+
+config ESP_AUTO_CONFIG_URL
+    string "URL for periodic autoconfiguration"
+    default ""
+
+config ESP_AUTO_CONFIG_URL_USER
+    string "HTTP username for periodic autoconfiguration"
+    default ""
+
+config ESP_AUTO_CONFIG_URL_PASSWORD
+    string "HTTP password for periodic autoconfiguration"
+    default ""
+
+config ESP_AUTO_CONFIG_PERIOD_S
+    int "Autoconfiguration period (in seconds)"
+    default "60"
+
+config ESP_AUTO_HTTPS_INTERNAL
+    bool "Expect same certificate as for internal HTTPS server"
+    default y
+
+config ESP_AUTO_HTTPS_INSECURE
+    bool "skip_cert_common_name_check"
+    default n
+
+config ESP_AUTO_AUTH_BASIC
+    bool "Use basic HTTP auth"
+    default n
+
+endmenu
+
+menu "OTA"
+
+config ESP_OTA_FIRMWARE_URL
+    string "URL for OTA download"
+    default ""
+
+config ESP_OTA_USER
+    string "HTTP username for periodic autoconfiguration"
+    default ""
+
+config ESP_OTA_PASSWORD
+    string "HTTP password for periodic autoconfiguration"
+    default ""
+
+config ESP_OTA_HTTPS_INTERNAL
+    bool "Expect same certificate as for internal HTTPS server"
+    default y
+
+config ESP_OTA_HTTPS_INSECURE
+    bool "skip_cert_common_name_check"
+    default y
+
+config ESP_OTA_AUTH_BASIC
+    bool "Use basic HTTP auth"
+    default n
+
+endmenu
+
+menu "Weather"
+
+config ESP_METAR_LOCATION
+    string "METAR location code"
+    default "LZIB"
+
+config ESP_METAR_PERIOD_S
+    int "METAR update period (in seconds)"
+    default "60"
+
+config ESP_SHMU_STATION
+    int "SHMU station code (0 for disable)"
+    default 11816
+
+config ESP_OWM_API_KEY
+    string "OpenWeatherMap API key"
+    default ""
+
+config ESP_OWM_LAT
+    string "OpenWeatherMap latitude"
+    default ""
+
+config ESP_OWM_LON
+    string "OpenWeatherMap longitude"
+    default ""
+
+config ESP_SHMU_HTTP_PORT
+    int "Port for HTTP service with SHMU images"
+    default "1024"
+
+endmenu
+
+menu "System"
+
+config ESP_WIFI_MAX_RETRY_CNT
+    int "WIFI max. retries"
+    default "5"
+
+config ESP_WIFI_RETRY_WAIT_MS
+    int "WIFI retry time (in ms)"
+    default "5000"
+    help
+        Time to wait for successful connection
+
+config ESP_WIFI_RETRY_CANCEL_MS
+    int "WIFI connection cancel time (in ms)"
+    default "5000"
+    help
+        Max time to block waiting on connection and cancel (>= retry wait)
+
+config ESP_TEMP_FORCE_WIFI_MS
+    int "Force wifi disconnect after some time (in ms)"
+    default "5000"
+
+config ESP_BUTTON_DEBOUNCE_MS
+    int "Button debounce wait (in ms)"
+    default "10"
+
+endmenu
+
+menu "Heating"
+
+config ESP_HEATING_UDP_PORT
+    int "UDP port for requests"
+    default "1024"
+
+config ESP_HEATING_UDP_SECRET
+    string "Secret string for datagram validation"
+    default ""
+
+config ESP_HEATING_UDP_KEY_B64
+    string "AES key (128-bit base64 encoded)"
+    default "MTIzNDU2Nzg5MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTI="
+    help
+        Default is "12345678901234567890123456789012", please change it.
+
+config ESP_HEATING_UDP_IV_B64
+    string "AES IV (64-bit base64 encoded)"
+    default "MTIzNDU2Nzg5MDEyMzQ1Ng=="
+    help
+        Default is "1234567890123456", please change it.
+
+config ESP_HEATING_UDP_ENCRYPT
+    bool "UDP datagram security"
+    default y
+
+endmenu
+
+endmenu
+
+# menu "ESP32 Thermistor Configuration"
+
+# config SERIE_RESISTANCE
+#     int "Serial resistor in ohm"
+#     range 0 200000
+#     default 164000
+#     help
+#         Value of the serial resistor connected to +3V.
+
+# config NOMINAL_RESISTANCE
+#     int "Th nominal resistor in ohm"
+#     range 0 200000
+#     default 100000
+#     help
+#         Nominal resistance at 25 degrees Celsius of thermistor.
+
+# config NOMINAL_TEMPERATURE
+#     int "Th nominal temperature in celcius"
+#     range 0 50
+#     default 25
+#     help
+#         Nominal temperature of the thermistor, usually 25 degress Celsius.
+
+# config BETA_VALUE
+#     int "Betha coefficient from thermistor manufacturer"
+#     range 0 100000
+#     default 4250
+#     help
+#         Beta coefficient of the thermistor.
+
+# config VOLTAGE_SOURCE
+#     int "Voltage source CPU in mV"
+#     range 0 5000
+#     default 3330
+#     help
+#         Voltage to which the serial resistance is connected in mV, usually 3300.
+
+# endmenu
