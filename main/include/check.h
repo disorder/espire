@@ -13,6 +13,7 @@ typedef enum {
     BUTTON,
     OLED,
     USB,
+    CO2,
     JTAG,
     NOT_EXPOSED,
 } gpio_owner_t;

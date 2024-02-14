@@ -52,6 +52,8 @@ const char *gpio_owner_str(gpio_owner_t owner)
         return "OLED";
     case USB:
         return "USB";
+    case CO2:
+        return "CO2";
     case NOT_EXPOSED:
         return "NOT_EXPOSED";
 #if JTAG_DEBUG
@@ -100,6 +102,9 @@ void check_gpio(int gpio, gpio_owner_t owner)
         break;
     case USB:
         s = "USB";
+        break;
+    case CO2:
+        s = "CO2";
         break;
     case NOT_EXPOSED:
         s = "NOT_EXPOSED";

@@ -5,11 +5,12 @@
 #include "metar.h"
 extern display_t oled;
 
-// TODO configurable default
 typedef enum {
     HEATING=0,
     CLOCK,
     OWM,
+    // TODO widget for viewing all zone temperatures
+    ZONES,
     OFF,
     MODE_MAX,
 } display_mode_t;

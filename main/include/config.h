@@ -7,6 +7,10 @@
 
 //#define JTAG_DEBUG 1
 #define CONTROLLER_SLEEP 1
+// wifi going dead and staying dead (doesn't happen on co2 testing device)
+// and with sleeping it usually crashes after some time but without sleep
+// it can stay offline for a week
+#define OFFLINE_REBOOT (5*60)
 
 #ifndef CONFIG_ESP_HEATING_UDP_ENCRYPT
 #define HEATING_UDP_ENC 0

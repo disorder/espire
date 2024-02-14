@@ -333,7 +333,7 @@ static void thermostat_udp(void *pvParameter)
             continue;
 
 #if HEATING_UDP_ENC
-       if (n != HEATING_DGRAM_SIZE)
+        if (n != HEATING_DGRAM_SIZE)
             continue;
 
         char iv[16];
@@ -351,24 +351,37 @@ static void thermostat_udp(void *pvParameter)
         }
 
         dec[1+member_size(heating_t, name)-1] = '\0';
-        data = heating_find(dec+1, dec[0] == '!');
-        if (data == NULL) {
+        if (dec[0] != '*')
+            data = heating_find(dec+1, dec[0] == '!');
+        if (data == NULL && dec[0] != '*')
             continue;
-        }
 
-        if (dec[0] == '?') {
-            th_prepare(dec, '!', NULL, data->val, data->set);
-            // send back to listening port
-            claddr.sin_port = htons(HEATING_UDP_PORT);
+        if (dec[0] == '?' || dec[0] == '*') {
+            iter_t iter = NULL;
+            if (dec[0] == '*') {
+                iter = heating_iter();
+                iter = heating_next(iter, &data);
+            }
+
+            while (data != NULL) {
+                th_prepare(dec, '!', data->name, data->val, data->set);
+                // send back to listening port
+                claddr.sin_port = htons(HEATING_UDP_PORT);
 #if !HEATING_UDP_ENC
-            n = sendto(th_sock, buf, 1+member_size(heating_t, name)+sizeof(data->val)+sizeof(data->set),
-                       MSG_DONTWAIT, (struct sockaddr *) &claddr, claddrlen);
+                n = sendto(th_sock, buf, 1+member_size(heating_t, name)+sizeof(data->val)+sizeof(data->set),
+                           MSG_DONTWAIT, (struct sockaddr *) &claddr, claddrlen);
 #else
-            n = sendto(th_sock, dec, HEATING_DGRAM_SIZE,
-                       MSG_DONTWAIT, (struct sockaddr *) &claddr, claddrlen);
+                n = sendto(th_sock, dec, HEATING_DGRAM_SIZE,
+                           MSG_DONTWAIT, (struct sockaddr *) &claddr, claddrlen);
 #endif
-            if (n < 0)
-                ESP_LOGE(TAG, "sendto: %s", strerror(errno));
+                if (n < 0)
+                    ESP_LOGE(TAG, "sendto: %s", strerror(errno));
+
+                ESP_LOGD(TAG, "sending '%s'", data->name);
+                data = NULL;
+                if (iter != NULL)
+                    iter = heating_next(iter, &data);
+             }
         } else if (dec[0] == '!') {
             time(&oled_update.temp_last);
             typeof(data->val) val;
@@ -407,7 +420,8 @@ static void thermostat_update(void *pvParameter)
     while (1) {
         if (oled_update.temp_pending)
             th_send('!', esp.dev->hostname, NAN, oled_update.temp_set);
-        th_send('?', esp.dev->hostname, 0, 0);
+        //th_send('?', esp.dev->hostname, 0, 0);
+        th_send('*', NULL, 0, 0);
 
         _vTaskDelay((oled_update.temp_pending)? S_TO_TICK(1) : S_TO_TICK(5));
     }

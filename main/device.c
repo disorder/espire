@@ -16,6 +16,7 @@
 #include "relay.h"
 #include "check.h"
 #include "wifi.h"
+#include "co2.h"
 #include "metar.h"
 #include "owm.h"
 #include "httpd.h"
@@ -29,7 +30,6 @@
 #include "oled.h"
 #include "ota.h"
 #include "dummy.h"
-#include "wifi.h"
 #include "log.h"
 
 #include "nvs_flash.h"
@@ -144,6 +144,8 @@ static void oled_update_task(void *pvParameter)
                 oled.lvgl_tick_timer_ms = LVGL_TICK_PERIOD_MS;
             }
         }
+
+        oled_co2(0, co2_ppm);
 
         _vTaskDelay(MS_TO_TICK(100));
     }
@@ -271,12 +273,17 @@ void device_init(device_t *dev)
 #ifdef OLED_SSD1306
     oled_ssd1306_init(&oled);
 #endif
+    if (oled.scr == NULL) {
 #ifdef LCD_ST7735S
-    if (oled.scr == NULL)
         tft_st7735s_init(&oled);
 #elif defined(LCD_ST7789_1) || defined(LCD_ST7789_2)
         tft_st7789_init(&oled);
 #endif
+    } else {
+        // SPI currently conflicts with CO2 UART GPIO
+        // this feature is currently just for testing CO2 sensor anyway
+        co2_init();
+    }
     if (oled.scr != NULL) {
         theme_init(&oled);
         TimerHandle_t oled_time_timer = NULL;
@@ -311,6 +318,7 @@ void device_init(device_t *dev)
     esp_log_level_set("http", ESP_LOG_WARN);
     esp_log_level_set("ftplib", ESP_LOG_WARN);
     esp_log_level_set("ftp", ESP_LOG_WARN);
+    esp_log_level_set("co2", ESP_LOG_INFO);
     esp_log_level_set("module", ESP_LOG_WARN);
     esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
 
@@ -318,7 +326,7 @@ void device_init(device_t *dev)
     nv_init();
 
     // start early so HTTPS has enough memory to start
-    ESP_LOGE(TAG, "%d", esp_get_free_heap_size());
+    ESP_LOGE(TAG, "free heap %d", esp_get_free_heap_size());
     httpd_t *httpd = httpd_new(0);
     httpd_run(httpd, 1);
 
@@ -430,7 +438,12 @@ void sleep_task(sleep_t *self)
                     ESP_LOGW(TAG, "wifi owner %x (%llds)", LIST(wifi_owner_t, item, task), now - LIST(wifi_owner_t, item, time));
             }
         }
-        if ((!esp.dev->controller || ntp_synced) && now.tv_sec - esp.activity >= 60 && wifi_count == 0) {
+        //if ((!esp.dev->controller || ntp_synced) && now.tv_sec - esp.activity >= 60 && wifi_count == 0) {
+        // TODO hard bypass for active CO2 data collection - to calibrate
+        // FIXME TODO bypassed sleep seems more stable - either this branch or sleep/wake itself causes it
+        esp.activity = now.tv_sec;
+        if (co2_ppm == -1 &&
+            (!esp.dev->controller || ntp_synced) && now.tv_sec - esp.activity >= 60 && wifi_count == 0) {
             // inhibits button handler - doesn't seem to work as expected
             esp.sleeping = 1;
 

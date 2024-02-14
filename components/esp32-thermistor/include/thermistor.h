@@ -75,8 +75,9 @@ typedef struct
     float vsource;                  /**< Voltage to which the serial resistance is connected in mV, usually 3300.0*/
     float t_resistance;             /**< Calculated thermistor resistance.*/
     uint32_t vout;                  /**< Voltage in mV of thermistor channel.*/
+    uint32_t vmedian;
     float celsius;
-    TickType_t time;
+    time_t time;
 } thermistor_handle_t;
 
 /**

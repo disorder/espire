@@ -10,6 +10,7 @@
 //static const char *TAG = "widgets";
 
 extern display_t oled;
+static int message = 0;
 
 void oled_clock(int locked, char *date, char *time)
 {
@@ -58,6 +59,52 @@ void oled_clock(int locked, char *date, char *time)
             lv_label_set_text(ldate, date);
         if (time != NULL)
             lv_label_set_text(ltime, time);
+    }
+    if (!locked)
+        LVGL_EXIT();
+}
+
+void oled_co2(int locked, int ppm)
+{
+    if (oled.scr == NULL)
+        return;
+
+    if (!locked)
+        LVGL_ENTER(0);
+    static lv_obj_t *lppm = NULL;
+
+    if (lppm == NULL) {
+        lppm = lv_label_create(oled.scr);
+        assert(lppm != NULL);
+        static lv_style_t style;
+        lv_style_init(&style);
+        lv_style_set_text_font(&style, &small5x3);
+        lv_obj_add_style(lppm, &style, 0);
+
+        lv_obj_set_width(lppm, 4*5);
+        lv_obj_align(lppm, LV_ALIGN_CENTER, 0, +9);
+        lv_obj_set_style_text_align(lppm, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_label_set_text(lppm, "");
+    }
+    if (lppm != NULL) {
+        char sppm[5] = "";
+        if (ppm != -1)
+            snprintf(sppm, sizeof(sppm), "%u", ppm);
+
+        switch (oled_update.mode %= MODE_MAX) {
+        case CLOCK:
+            lv_obj_align(lppm, LV_ALIGN_BOTTOM_LEFT, 0, 0);
+            lv_obj_clear_flag(lppm, LV_OBJ_FLAG_HIDDEN);
+            break;
+        case HEATING:
+            lv_obj_align(lppm, LV_ALIGN_CENTER, 0, +9);
+            lv_obj_clear_flag(lppm, LV_OBJ_FLAG_HIDDEN);
+            break;
+        default:
+            lv_obj_add_flag(lppm, LV_OBJ_FLAG_HIDDEN);
+        }
+
+        lv_label_set_text(lppm, sppm);
     }
     if (!locked)
         LVGL_EXIT();
@@ -363,6 +410,10 @@ void oled_network(int locked, int wifi, int ping)
             //lv_obj_align(nlabel, LV_ALIGN_CENTER, 1, 2);
             lv_obj_align(nlabel, LV_ALIGN_BOTTOM_MID, 1, -7);
             //oled_network_align(LV_ALIGN_BOTTOM_RIGHT, 0, 0);
+            if (message)
+                lv_obj_add_flag(nlabel, LV_OBJ_FLAG_HIDDEN);
+            else
+                lv_obj_clear_flag(nlabel, LV_OBJ_FLAG_HIDDEN);
             break;
         default:
             lv_obj_align(nlabel, LV_ALIGN_CENTER, 0, 0);
@@ -491,7 +542,9 @@ void oled_message(int locked, char *text)
             lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
             break;
         case CLOCK:
-            lv_obj_align(label, LV_TEXT_ALIGN_CENTER, 0, 4);
+            // now conflicts with temperatures
+            //lv_obj_align(label, LV_TEXT_ALIGN_CENTER, 0, 4);
+            lv_obj_align(label, LV_ALIGN_BOTTOM_MID, 0, -7);
             lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
             break;
         default:
@@ -501,6 +554,7 @@ void oled_message(int locked, char *text)
 
         if (text != NULL)
             lv_label_set_text(label, text);
+        message = text != NULL;
     }
     if (!locked)
         LVGL_EXIT();

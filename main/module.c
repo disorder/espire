@@ -1,5 +1,6 @@
 #include <assert.h>
 #include <string.h>
+#include "config.h"
 #include "ntp.h"
 #include "module.h"
 #include "util.h"
@@ -44,6 +45,9 @@ inline iter_t module_next(iter_t iter, module_t **module)
 void module_offline(int timeout)
 {
     ESP_LOGI(TAG, "trigger offline timeout=%d", timeout);
+    if (OFFLINE_REBOOT && timeout > OFFLINE_REBOOT)
+        esp_system_abort("offline limit");
+
     iter_t iter = module_iter();
     module_t *m;
     while ((iter = module_next(iter, &m)) != NULL) {

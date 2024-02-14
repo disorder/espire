@@ -1,5 +1,45 @@
 # espire - ESP32 framework for intelligent home and heating control
 
+## ⚠️ Note
+
+This is WIP currently on hiatus.  It was made back in summer of 2022
+with recent ESP-IDF in a short time span and not published or deployed
+yet.  Quick growth caused it to run into memory depletion when all
+extra functions (mainly including HTTPS) are used and some
+instability - from time to time it just drops WiFi connection or even
+hangs.  Some of the issues were worked around (mainly memory depletion
+by using alternative protocols like FTP where available) and improved.
+
+It is fairly complete and stable but needs more testing and debugging.
+Quick attempt of automatic reboot on long offline state does not seem
+to work quite as expected - which is the single most important thing
+for data collection (reboot once a day may be enough as it doesn't
+happen so often).  I've also seen some issues on unstable WiFi which
+may have been triggering the same issue, in that case reboot once a
+day would not be applicable.
+
+Additionally during CO2 sensor testing there occasionally seem to be
+sensor hangs which I think was only fixed after power off instead of
+reboot.  CO2 is not a planned feature so I haven't looked into it much.
+
+I've been also planning to tinker with ESP-NOW if direct
+client-controller connection would be feasible - as a method more
+resilient to circumvent possible WiFi issues.
+
+Due to the various factors it will take some time until this project
+has priority again so I wanted to publish and back up it in current
+state.
+
+Future to-do list:
+
+- (minor) add another thermistor component value used for exterior and
+  possibly incorporate exterior temperature in controlling
+- deploy, test and improve data collection stability
+- may need to look into eBUS to control heating in addition to valves
+- sending various data to time series database for analysis or monitoring
+- figure out a way to make nice looking front panel for mounting
+  display and buttons
+
 ## License
 
 This work is licensed under GNU Affero General Public License 3.0 (AGPL).
@@ -87,6 +127,7 @@ is set.
 
 - `main` - entry point, initializing modules
 - `config.h` - configurable value definition
+- `device` - main initialalization of device, services, sleep loop
 - `config` - override configurable values from non-volatile memory
 - `module` - module management
 - `dummy` - trivial example module
@@ -95,17 +136,27 @@ is set.
 - `adc2` - ADC2 locking mechanism
 - `temp` - thermistor measurements (using `esp32-thermistor`)
 - `relay` - control heating with relay
+- `heating` - heating control, client/controller communication
 - `button` - button handling
+- `log` - network loggin
 - `ntp` - NTP synchronization
-- `httpd` - HTTP server
+- `httpd` - HTTP/HTTPS server
 - `http` - HTTPS requests
 - `ftp` - FTP requests
+- `ping` - tracking connectivity to trigger modules
 - `metar` - download and parse METAR weather report
+- `owm` - OpenWeatherMap forecast
+- `shmu` - radar and satellite imagery (with additional service and 16-bit display)
 - `util` - linked list, macros and other generally useful functions
 - `wifi` - WiFi STA connection (based on example)
 - `auto` - automatic remote configuration over HTTP
 - `nv` - non-volatile memory management
 - `ota` - OTA update over HTTP
+- `widgets` - LVGL drawing
+- `oled` - initially monochrome SSD1306 but tested with ST7735S
+  (similar size) and ST7789 IPS screens
+- `co2` - basic support for CO2 readings and sending via UDP (intended
+  only for sensor testing), support for Senseair S8
 
 Modules: `dummy`, `auto`, `metar`, `httpd`.  These are made to be
 controllable via API but `auto` and `metar` are triggered by either
@@ -225,6 +276,8 @@ Network status has two parts:
 
 ![Screenshot](data/screenshot.png "Information screen")
 
+Screenshots are kind of an experimental glitchy feature.
+
 ### HTTPS server
 
 Be sure to adjust `HTTPD_MAX_URI_HANDLERS` to appropriate size,
@@ -253,6 +306,7 @@ implement in C and easy to make read & write functionality in single handler.
 
 ### GET
 
+// TODO UPDATE
 - `/` - test response
 - `/loglevel` - set `tag` (string or `*`) to numeric level `level`
 - `/log` - add network logging destination (`ip`, `port`)
@@ -322,6 +376,8 @@ condition and attempting `reinit`.  The error reads:
 ```
 lcd_panel.io.i2c: panel_io_i2c_tx_buffer(161): i2c transaction failed
 ```
+
+Only tested with ESP-IDF driver.
 
 ### `sendto: Not enough space`
 

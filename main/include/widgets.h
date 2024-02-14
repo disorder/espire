@@ -35,5 +35,6 @@ void oled_top_right(int locked, char *text);
 void oled_top_left(int locked, char *text);
 void oled_message(int locked, char *text);
 void oled_owm(int locked, char *text);
+void oled_co2(int locked, int ppm);
 
 #endif /* __WIDGETS_H__ */

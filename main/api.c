@@ -11,6 +11,7 @@
 #include "nv.h"
 #include "heap.h"
 #include "oled.h"
+#include "co2.h"
 #include "widgets.h"
 #include "button.h"
 #include "ntp.h"
@@ -293,6 +294,53 @@ static esp_err_t api_heating_temp_set(httpd_req_t *req)
     */
 
 CLEANUP:
+    if (buf != NULL)
+        free(buf);
+
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_co2_ppm_get(httpd_req_t *req)
+{
+    char *buf = NULL;
+    int buf_len;
+    // no authorization required
+    api_key_check(0, req, &buf, &buf_len);
+    //http_printf(req, "%d", co2_ppm);
+    http_printf(req, "%d", senseair_s8_co2_ppm());
+
+    if (buf != NULL)
+        free(buf);
+
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_co2_abc_get(httpd_req_t *req)
+{
+    char *buf = NULL;
+    int buf_len;
+    // no authorization required
+    api_key_check(0, req, &buf, &buf_len);
+    http_printf(req, "%d", senseair_s8_abc());
+
+    if (buf != NULL)
+        free(buf);
+
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_co2_get(httpd_req_t *req)
+{
+    char *buf = NULL;
+    int buf_len;
+    // no authorization required
+    api_key_check(0, req, &buf, &buf_len);
+    http_printf(req, "FW version: %04x", senseair_s8_fwver());
+    http_printf(req, "ID: %08X", senseair_s8_id());
+
     if (buf != NULL)
         free(buf);
 
@@ -1050,6 +1098,21 @@ static httpd_uri_t api_uris[] = {
         .uri       = "/temp/get",
         .method    = HTTP_GET,
         .handler   = api_heating_temp_get,
+    },
+    {
+        .uri       = "/co2/ppm",
+        .method    = HTTP_GET,
+        .handler   = api_co2_ppm_get,
+    },
+    {
+        .uri       = "/co2/abc",
+        .method    = HTTP_GET,
+        .handler   = api_co2_abc_get,
+    },
+    {
+        .uri       = "/co2",
+        .method    = HTTP_GET,
+        .handler   = api_co2_get,
     },
     {
         .uri       = "/ota",

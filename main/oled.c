@@ -463,7 +463,7 @@ void oled_ssd1306_init(display_t *oled)
     //oled->disp_drv.sw_rotate = LV_DISP_ROT_180;
     // this works, remembers state until power down
     //esp_lcd_panel_mirror(oled->panel_handle, true, true);
-    //esp_lcd_panel_invert_color(oled->panel_handle, true);
+    esp_lcd_panel_invert_color(oled->panel_handle, true);
     //esp_lcd_panel_disp_on_off(oled->panel_handle, 1);
 
     //oled->disp_drv->monitor_cb = lvgl_monitor_cb;

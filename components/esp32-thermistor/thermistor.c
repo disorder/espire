@@ -30,6 +30,7 @@
 
 #include "thermistor.h"
 
+#include <stdlib.h>
 #include "driver/gpio.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "adc_cali_schemes.h"
@@ -257,21 +258,130 @@ float thermistor_vout_to_celsius(thermistor_handle_t* th, uint32_t vout)
     return steinhart;
 }
 
+static int compar(const void *a, const void *b)
+{
+  return (*(int *)a - *(int *)b);
+}
+
 uint32_t thermistor_read_vout(thermistor_handle_t* th)
 {
     uint32_t adc_reading = 0;
+    uint32_t avg_reading = 0;
     int value;
     adc_oneshot_unit_handle_t unit = (th->adc_unit == ADC_UNIT_1)? unit1 : unit2;
     adc_cali_handle_t cali = (th->adc_unit == ADC_UNIT_1)? cali_unit1 : cali_unit2;
+    int values[NO_OF_SAMPLES];
 
     // Use multiple samples to stabilize the measured value.
     for (int i = 0; i < NO_OF_SAMPLES; i++) {
-        if (adc_oneshot_read(unit, th->channel, &value) == ESP_OK)
-            adc_reading += value;
-        else // again
+        if (adc_oneshot_read(unit, th->channel, &value) == ESP_OK) {
+            avg_reading += value;
+            values[i] = value;
+            //ESP_LOGI(TAG, "%d", value);
+        } else // again
+            i -= 1;
+    }
+    avg_reading /= NO_OF_SAMPLES;
+
+    // average can jump, there are outliers
+    qsort(values, NO_OF_SAMPLES, sizeof(value), compar);
+    int median = values[NO_OF_SAMPLES/2];
+    // histogram
+    int start_max = values[0];
+    int start_c = 0;
+    for (int start=values[0], i=0, c=0; start <= values[NO_OF_SAMPLES-1]; start+=20) {
+        while (values[i] < start+20) {
+            c += 1;
+            i += 1;
+        }
+        //ESP_LOGI(TAG, "%d: %d", start, c);
+        if (c > start_c) {
+            start_c = c;
+            start_max = start;
+        }
+        c = 0;
+    }
+    // if this is not precise enough we need to remove outliers or do
+    // another run with outlier filtering
+
+    // there is a risk of infinite cycle - not enough "correct" samples
+    /*
+    for (int i = 0; i < NO_OF_SAMPLES; i++) {
+        if (adc_oneshot_read(unit, th->channel, &value) == ESP_OK) {
+            if (abs(median - value) < 50)
+                adc_reading += value;
+            else
+                i -= 1;
+        } else // again
             i -= 1;
     }
     adc_reading /= NO_OF_SAMPLES;
+    */
+
+    // filtering should be good enough
+    // counting on median falling into more precise group of values
+    // and outliers being more extreme to be successfully filtered
+    int samples = 0;
+    if (th->vmedian)
+        median = th->vmedian;
+    for (int i = 0; i < NO_OF_SAMPLES; i++) {
+        value = values[i];
+        if (abs(median - value) < 10) {
+            adc_reading += value;
+            samples += 1;
+        }
+    }
+    ESP_LOGI(TAG, "median %d filtered %d samples", median, NO_OF_SAMPLES - samples);
+    if (samples) {
+        adc_reading /= samples;
+        th->vmedian = adc_reading;
+    } else {
+        // this can result in a large jump
+        //adc_reading = avg_reading;
+        // take middle of largest histogram group as result
+        adc_reading = start_max + 10;
+    }
+    /*
+    {
+        // TODO test this as result, as a fallback it was always quite lower ~1C
+        // TODO this can be better if there are extreme outliers
+        samples = 0;
+        adc_reading = 0;
+        for (int i=0; i < NO_OF_SAMPLES; i++) {
+            // max + neighbor on each side
+            if (values[i] >= start_max-20 && values[i] < start_max+20+20) {
+                samples += 1;
+                adc_reading += values[i];
+            }
+        }
+        adc_reading /= samples;
+        //th->vmedian = adc_reading;
+    }
+    */
+
+    // histogram
+    int start_i = 0;
+    samples = 0;
+    for (int start=values[0], i=0, start_c=0; start <= values[NO_OF_SAMPLES-1]; start+=20) {
+        while (values[i] < start+20) {
+            if (start_c == 0)
+                start_i = i;
+            start_c += 1;
+            i += 1;
+        }
+        ESP_LOGI(TAG, "%d: %d", start, start_c);
+        if (start_c >= 10*(NO_OF_SAMPLES/64)) {
+            for (int j=start_i; j<i; j++) {
+                adc_reading += values[j];
+                samples += 1;
+            }
+        }
+        start_c = 0;
+        start_i = i;
+    }
+    adc_reading /= samples;
+
+    ESP_LOGI(TAG, "histogram >=%d, %d samples, %d", 10*(NO_OF_SAMPLES/64), samples, adc_reading);
 
     int voltage;
     ESP_ERROR_CHECK(adc_cali_raw_to_voltage(cali, adc_reading, &voltage));
