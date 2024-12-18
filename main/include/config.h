@@ -212,6 +212,15 @@ static thermistor_t th_4k7 = {
     .beta_val = 3950,
     .vsource = 3300,
 };
+
+// NTC 1k B57164K0102K
+static thermistor_t th_1k = {
+    .serial_resistance = 1500,
+    .nominal_resistance = 1000,
+    .nominal_temperature = 25,
+    .beta_val = 3730,
+    .vsource = 3300,
+};
 #endif
 
 void config_init();

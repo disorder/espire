@@ -34,5 +34,6 @@ void generic_key_handler(auto_handler_t *self, char *value);
 
 void controller_ip_handler(auto_handler_t *self, char *value);
 void hostname_handler(auto_handler_t *self, char *value);
+void config_apply(auto_t *self, char *buf, int bufsize, int commit, int auth);
 
 #endif /* __AUTO_H__ */

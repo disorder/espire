@@ -32,6 +32,6 @@ gpio_owner_t gpio_owner(int gpio);
 const char *gpio_owner_str(gpio_owner_t owner);
 void check_gpio(int gpio, gpio_owner_t owner);
 void check_gpio_clear(int gpio);
-void check_report();
+void check_report(void *req, int (*func)(void *req, const char *fmt, ...));
 
 #endif /* __CHECK_H__ */

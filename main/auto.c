@@ -414,23 +414,16 @@ char *config_pair(char *start, char *stop, char **name, char **value)
     return NULL;
 }
 
-static void config_task_cb(http_request_t *req, int success)
+void config_apply(auto_t *self, char *buf, int bufsize, int commit, int auth)
 {
-    if (!success)
-        goto CLEANUP;
-    if (!req->client || esp_http_client_get_status_code(req->client) != 200) {
-        goto CLEANUP;
-    }
-
-    //ESP_LOGI(TAG, "config data: %s", req->buf);
-
-    auto_t *self = req->data;
-    assert(self != NULL);
+    if (self == NULL)
+        self = &singleton;
     char *name;
     char *value;
-    char *stop = req->buf + req->bufsize;
-    char *start = req->buf;
-    int authorized = strlen(API_KEY) == 0;
+    char *stop = buf + bufsize;
+    char *start = buf;
+    int authorized = auth || strlen(API_KEY) == 0;
+
     while ((start = config_pair(start, stop, &name, &value)) != NULL) {
         //ESP_LOGD(TAG, "pair '%s'='%s'", (name == NULL)? "(null)" : name, (value == NULL)? "(null)" : value);
         if (value != NULL) {
@@ -444,7 +437,7 @@ static void config_task_cb(http_request_t *req, int success)
                 continue;
             }
             if (!authorized) {
-                ESP_LOGW(TAG, "%s ignored, authorization failed", name);
+                ESP_LOGE(TAG, "%s ignored, authorization failed", name);
                 continue;
             }
 
@@ -458,6 +451,26 @@ static void config_task_cb(http_request_t *req, int success)
             }
         }
     }
+
+    if (commit)
+        nv_commit();
+}
+
+static void config_task_cb(http_request_t *req, int success)
+{
+    if (!success)
+        goto CLEANUP;
+    if (!req->client || esp_http_client_get_status_code(req->client) != 200) {
+        goto CLEANUP;
+    }
+
+    // this will be NULL if auth is set up but server doesn't do auth
+    ESP_LOGD(TAG, "config data: %s", (req->buf == NULL)? "(null)" : req->buf);
+    ESP_LOGI(TAG, "config data: 0x%x", req->buf);
+
+    auto_t *self = req->data;
+    assert(self != NULL);
+    config_apply(self, req->buf, req->bufsize, 1, 0);
 
     nv_commit();
 

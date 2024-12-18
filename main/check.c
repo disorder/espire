@@ -155,13 +155,18 @@ void check_init(int wifi)
         gpio_user[i] = NOT_EXPOSED;
 }
 
-void check_report()
+void check_report(void *req, int (*func)(void *req, const char *fmt, ...))
 {
     for (int i=0; i<COUNT_OF(gpio_user); i++) {
-        if (gpio_user[i] != NONE)
-            ESP_LOGI(TAG, "GPIO %d used by %s", i, gpio_owner_str(gpio_user[i]));
-        //else
+        if (gpio_user[i] != NONE) {
+            if (req && func)
+                func(req, "GPIO %d used by %s\n", i, gpio_owner_str(gpio_user[i]));
+            else
+                ESP_LOGI(TAG, "GPIO %d used by %s", i, gpio_owner_str(gpio_user[i]));
+        }
+        //else {
         //    ESP_LOGI(TAG, "GPIO %d", i);
+        //}
     }
 
     for (int i=0; i<COUNT_OF(gpio_user); i++) {
@@ -176,7 +181,10 @@ void check_report()
             for (int x=0; x<ADC2_WIFI_USABLE; x++)
                 if (adc2_gpio[x] == i)
                     wifi = 1;
-            ESP_LOGI(TAG, "GPIO %d is FREE %s%s %s", i, adc1? "ADC1" : "", adc2? "ADC2" : "", wifi? "WIFI" : "");
+            if (req && func)
+                func(req, "GPIO %d is FREE %s%s %s\n", i, adc1? "ADC1" : "", adc2? "ADC2" : "", wifi? "WIFI" : "");
+            else
+                ESP_LOGI(TAG, "GPIO %d is FREE %s%s %s", i, adc1? "ADC1" : "", adc2? "ADC2" : "", wifi? "WIFI" : "");
         }
     }
 }

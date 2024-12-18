@@ -304,14 +304,17 @@ Most of the requests are checking `apikey` parameter (if `API_KEY` is
 set).  It's basically all `GET` with parameters because it's easy to
 implement in C and easy to make read & write functionality in single handler.
 
-### GET
+### GET (and some POST)
 
-// TODO UPDATE
+Hopefully complete list of calls from `api.c`:
+
 - `/` - test response
 - `/loglevel` - set `tag` (string or `*`) to numeric level `level`
 - `/log` - add network logging destination (`ip`, `port`)
 - `/stats` - various information about system
 - `/module` - control modules with identified by `name` or `id` and `run` (0/1)
+  or POST multiple lines with format `name=run`
+- `/auto` - `config` for oneliners or use POST to apply full config file
 - `/export` -  export settings in autoconfiguration format (no WiFi password)
 - `/nvdump` - dump value of `key` in namespace
 - `/screenshot`
@@ -325,8 +328,49 @@ implement in C and easy to make read & write functionality in single handler.
   button press/release
 - `/heap` - free heap size
 - `/ota` - trigger OTA
+- `/gpio` - GPIO allocations
+- `/temp/zone` - without `name` returns ADC+relay pins (`name=tpin+rpin`),
+  with `name` sets either `adc` or `relay` pin number
+- `/temp/get` - all or zone `name` values (current value and trigger value)
+- `/temp/set` - set  zone `name` current value or trigger value (`val`/`set`)
+- `/co2` - get FW version and ID
+- `/co2/abc` - get ABC setting
+- `/co2/ppm` - get PPM reading
+- `/controller` - set controller IP to `value`
+- `/hostname` - set hostname to `value`
+- `/mac` - MAC address
 - `/version` - app information
 - `/reboot`
+
+## Autoconfiguration
+
+Also see "Self-signed certificates".  Be sure to provide HTTP server
+with correct certificate and basic/digest HTTP auth as devices will be
+attempting.
+
+My project `simple-https-server` can provide HTTPS server with digest
+auth to serve configuration and OTA updates.
+
+### Keys
+
+Hopefully complete list of configuration options from `auto.c`:
+
+- `wifi.ssid=VALUE`
+- `wifi.pass=VALUE`
+- `controller_ip=VALUE` - IPv4
+- `hostname=VALUE`
+- `temp_zone_adc=NAME=PIN` - written to NVS as `tpin.NAME`
+- `temp_zone_relay=NAME=PIN` - written to NVS as `rpin.NAME`
+- `th.udp.key=base64(VALUE)` - AES key (see UDP request security)
+- `th.udp.iv=base64(VALUE)` - AES IV (see UDP request security)
+- `th.udp.secret=VALUE[STR]` - passphrase to verify authenticity
+- `th.udp.port=VALUE[U16]` - destination UDP port for temperature/thermostate updates
+- `sleep.force=VALUE[U8]`
+- `mode_default=VALUE[U8]` - also accepts names: `heating`, `clock`, `forecast`, `off`
+- `oled_power=VALUE[U8]`
+- `rm=KEY` - remove NVS key (from project namespace only)
+- `write_str=KEY=VALUE[STR]` - remove after writing to not wear flash out with overwrites or use API call `/auto` to apply once
+- `loglevel=NAME=VALUE[INT]`
 
 ## Caveats
 
@@ -536,3 +580,31 @@ be turned off with generic HTTP `module` API.
 
 Controller can be forced to sleep at runtime with `sleep.force=1` in
 automatic configuration.
+
+## FAQ
+
+### Basic initial setup
+
+Fallback device configuration will have hostname "dummy" and zone name
+should be configured with the same name to display temperature.  For
+this to work there needs to be thermostat defined (thermostat
+parameters and count) in device configuration `controller_defs`.  It
+will be then allocate GPIO pin.  Other configuration changes can be
+delivered with autoconfiuration server at runtime.
+
+GPIO pin allocation is logged after boot (or via API `/gpio`).  Next
+step is configuring this PIN as NVS key via autoconfiguration server
+`/MAC_ADDRESS` (may require valid certificate, use internal
+certificate or basic/digest HTTP auth and also include `apikey=...`
+value to authorize configuration).  API call to set pin is
+e.g. `/temp/zone?name=dummy&adc=36&APIKEY=test`.  Autoconfiguration
+alternative is `temp_zone_adc=dummy=36`
+
+Old NVS keys need to be removed via autoconfiguration or `/auto` API
+call (e.g. `rm=tpin.dummy`) in case of conflicting setup otherwise it
+might think that zone temperatures obtained over network are actually
+local.
+
+Configuration options are available through `idf.py menuconfig` with
+sane and mostly secure defaults.  API calls may require `APIKEY=`
+parameter to authorize operations.

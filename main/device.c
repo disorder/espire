@@ -77,6 +77,7 @@ static void oled_update_task(void *pvParameter)
         if (oled_update.temp || oled_update.invalidate) {
             oled_update.temp = 0;
             if (esp.dev) {
+                // display local temperature - zone name = hostname
                 heating_t *data = heating_find(esp.dev->hostname, 0);
                 if (data != NULL)
                     oled_temp(0, data->val, data->set, oled_update.temp_mod);
@@ -306,6 +307,8 @@ void device_init(device_t *dev)
 //    esp_log_level_set("*", ESP_LOG_WARN);
     esp_log_level_set("adc2", ESP_LOG_INFO);
     esp_log_level_set("adc2_bypass", ESP_LOG_INFO);
+    //esp_log_level_set("auto", ESP_LOG_INFO);
+    //esp_log_level_set("nv", ESP_LOG_INFO);
     esp_log_level_set("check", ESP_LOG_INFO);
     esp_log_level_set("heap", ESP_LOG_INFO);
     esp_log_level_set("relay", ESP_LOG_INFO);
@@ -365,7 +368,7 @@ void device_init(device_t *dev)
     temp_run(NULL, 1);
 
     // print GPIO usage
-    check_report();
+    check_report(NULL, NULL);
 
     api_init(httpd);
     // seen hang on oled_power so make extra httpd

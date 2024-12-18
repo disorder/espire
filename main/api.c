@@ -64,7 +64,7 @@ static esp_err_t api_module(httpd_req_t *req)
                 goto CLEANUP;
             }
 
-            char *name[16];
+            char name[16];
             if (httpd_query_key_value(buf, "name", (char *) name, sizeof(name)) == ESP_OK) {
                 int count = 0;
                 iter_t iter = module_iter();
@@ -338,8 +338,8 @@ static esp_err_t api_co2_get(httpd_req_t *req)
     int buf_len;
     // no authorization required
     api_key_check(0, req, &buf, &buf_len);
-    http_printf(req, "FW version: %04x", senseair_s8_fwver());
-    http_printf(req, "ID: %08X", senseair_s8_id());
+    http_printf(req, "FW version: %04x\n", senseair_s8_fwver());
+    http_printf(req, "ID: %08X\n", senseair_s8_id());
 
     if (buf != NULL)
         free(buf);
@@ -888,6 +888,22 @@ CLEANUP:
     return ESP_OK;
 }
 
+static esp_err_t api_mac(httpd_req_t *req)
+{
+    char *mac = get_mac();
+    http_printf(req, "%02X:%02X:%02X:%02X:%02X:%02X",
+                mac[0],mac[1],mac[2],mac[3],mac[4],mac[5]);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_gpio(httpd_req_t *req)
+{
+    check_report((void *) req, (int (*)(void *, const char *, ...)) &http_printf);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
 static esp_err_t api_stats(httpd_req_t *req)
 {
     int buf_len;
@@ -1005,50 +1021,61 @@ static esp_err_t api_export(httpd_req_t *req)
         switch (info.type) {
         case NVS_TYPE_U8:
             READ(uint8_t, u8, info);
-            http_printf(req, "%s=%"PRIu8, info.key, value_u8);
+            http_printf(req, "%s=%"PRIu8"\n", info.key, value_u8);
             break;
         case NVS_TYPE_I8:
             READ(int8_t, i8, info);
-            http_printf(req, "%s=%"PRIi8, info.key, value_i8);
+            http_printf(req, "%s=%"PRIi8"\n", info.key, value_i8);
             break;
         case NVS_TYPE_U16:
             READ(uint16_t, u16, info);
-            http_printf(req, "%s=%"PRIu16, info.key, value_u16);
+            http_printf(req, "%s=%"PRIu16"\n", info.key, value_u16);
             break;
         case NVS_TYPE_I16:
             READ(int16_t, i16, info);
-            http_printf(req, "%s=%"PRIi16, info.key, value_i16);
+            http_printf(req, "%s=%"PRIi16"\n", info.key, value_i16);
             break;
         case NVS_TYPE_U32:
             READ(uint32_t, u32, info);
-            http_printf(req, "%s=%"PRIu32, info.key, value_u32);
+            http_printf(req, "%s=%"PRIu32"\n", info.key, value_u32);
             break;
         case NVS_TYPE_I32:
             READ(int32_t, i32, info);
-            http_printf(req, "%s=%"PRIi32, info.key, value_i32);
+            http_printf(req, "%s=%"PRIi32"\n", info.key, value_i32);
             break;
         case NVS_TYPE_U64:
             READ(uint64_t, u64, info);
-            http_printf(req, "%s=%"PRIu64, info.key, value_u64);
+            http_printf(req, "%s=%"PRIu64"\n", info.key, value_u64);
             break;
         case NVS_TYPE_I64:
             READ(int64_t, i64, info);
-            http_printf(req, "%s=%"PRIi64, info.key, value_i64);
+            http_printf(req, "%s=%"PRIi64"\n", info.key, value_i64);
             break;
         case NVS_TYPE_STR:
             size_t size_str = 0;
             char *value_str;
             ESP_ERROR_CHECK(nv_read_str(info.key, &value_str, &size_str));
-            http_printf(req, "%s=%s", info.key, value_str);
+            http_printf(req, "%s=%s\n", info.key, value_str);
             free(value_str);
             break;
         case NVS_TYPE_BLOB:
             size_t size_blob = 0;
             ESP_ERROR_CHECK(nv_read_blob_size(info.key, &size_blob));
-            ESP_LOGW(TAG, "blob(%d) ignored", size_blob);
+            //ESP_LOGW(TAG, "blob(%d) ignored", size_blob);
+            http_printf(req, "#%s=blob[%d] use /nvdump?key=%s to retrieve\n", info.key, size_blob, info.key);
+// not sure if this can cause issues in HTTP output
+// no binary data is currently used in project namespace
+#if 0
+            char *value_blob;
+            size_blob = 0;
+            ESP_ERROR_CHECK(nv_read_blob(info.key, (void *) &value_blob, &size_blob));
+            http_printf(req, "#%s=raw[%s]\n", info.key, value_blob);
+            free(value_blob);
+#endif
             break;
         case NVS_TYPE_ANY:
             ESP_LOGW(TAG, "found ANY type");
+            http_printf(req, "#%s=ANY type\n", info.key);
             break;
         }
 
@@ -1059,6 +1086,75 @@ static esp_err_t api_export(httpd_req_t *req)
 CLEANUP:
     if (buf != NULL)
         free(buf);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+// this call should be for oneliners, use POST for full config
+static esp_err_t api_auto(httpd_req_t *req)
+{
+    char *buf = NULL;
+    int buf_len;
+    if (!api_key_check(1, req, &buf, &buf_len))
+        goto CLEANUP;
+
+    if (buf_len > 1) {
+        {//if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            // 2048 causes stack overflow, 1024 was ok so far
+            // not parsed so can't use newlines, big size is pointless
+            char config[128];
+            if (httpd_query_key_value(buf, "config", (char *) config, sizeof(config)) == ESP_OK) {
+                config_apply(NULL, (char *) config, strlen(config), 1, 1);
+            }
+        }
+    }
+
+CLEANUP:
+    if (buf != NULL)
+        free(buf);
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_auto_post(httpd_req_t *req)
+{
+    char *buf = NULL;
+    int qbuf_len;
+    char *qbuf;
+    int auth = 0;
+    if (api_key_check(1, req, &qbuf, &qbuf_len))
+        auth = 1;
+
+    int ret, remaining = req->content_len;
+    buf = malloc(remaining+1);
+    assert(buf != NULL);
+    buf[remaining] = '\0';
+
+    while (remaining > 0) {
+        /* Read the data for the request */
+        if ((ret = httpd_req_recv(req,
+                                  buf + (req->content_len - remaining),
+                                  remaining)) <= 0) {
+            if (ret == HTTPD_SOCK_ERR_TIMEOUT) {
+                /* Retry receiving if timeout occurred */
+                continue;
+            }
+            free(buf);
+            return ESP_FAIL;
+        }
+
+        remaining -= ret;
+    }
+
+    // post with curl -X POST --data-binary @filename to preserve newlines
+    config_apply(NULL, buf, strlen(buf), 1, auth);
+
+//CLEANUP:
+    if (qbuf != NULL)
+        free(qbuf);
+    if (buf != NULL)
+        free(buf);
+    // End response
     httpd_resp_send_chunk(req, NULL, 0);
     return ESP_OK;
 }
@@ -1124,6 +1220,16 @@ static httpd_uri_t api_uris[] = {
         .method    = HTTP_GET,
         .handler   = api_export,
     },
+    {
+        .uri       = "/auto",
+        .method    = HTTP_GET,
+        .handler   = api_auto,
+    },
+    {
+        .uri       = "/auto",
+        .method    = HTTP_POST,
+        .handler   = api_auto_post,
+    },
     // some damage could be done by abusing this
     {
         .uri       = "/loglevel",
@@ -1141,7 +1247,7 @@ static httpd_uri_t api_uris[] = {
         .handler   = api_module,
     },
     {
-        .uri       = "/module_post",
+        .uri       = "/module",
         .method    = HTTP_POST,
         .handler   = api_module_post,
     },
@@ -1181,6 +1287,16 @@ static httpd_uri_t api_uris[] = {
         .method    = HTTP_GET,
         .handler   = api_nvdump,
     },
+    {
+        .uri       = "/gpio",
+        .method    = HTTP_GET,
+        .handler   = api_gpio,
+    },
+    {
+        .uri       = "/mac",
+        .method    = HTTP_GET,
+        .handler   = api_mac,
+    },
 };
 
 void api_init(httpd_t *httpd)
@@ -1207,6 +1323,7 @@ int api_key_check(int set_status, httpd_req_t *req, char **ptr_buf, int *ptr_buf
 
         if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
             //ESP_LOGI(TAG, "Found URL query => %s", buf);
+            // TODO possible ESP_ERR_HTTPD_RESULT_TRUNC
             char api_key[50];
 
             if (httpd_query_key_value(buf, "apikey", (char *) api_key, sizeof(api_key)) == ESP_OK) {

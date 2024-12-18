@@ -270,11 +270,17 @@ static void wifi_check_task(void *pvParameter)
             last_connected = now;
         } else {
             if (now > last_connected+MS_TO_TICK(WIFI_CHECK_MS)) {
+                // TODO various attempts including reboots are not working
+                //      (maybe affected by bad signal quality)
+                //      last resort is rebooting periodically?
+                ESP_LOGE(TAG, "reconnecting wifi disabled");
+                /*
                 ESP_LOGE(TAG, "reconnecting wifi");
                 // try nonblocking connect
                 if (wifi_run(0, 0, NULL) == 0)
                     if (wifi_connected)
                         last_connected = now;
+                */
             }
         }
 
