@@ -24,7 +24,13 @@ reboot.  CO2 is not a planned feature so I haven't looked into it much.
 
 I've been also planning to tinker with ESP-NOW if direct
 client-controller connection would be feasible - as a method more
-resilient to circumvent possible WiFi issues.
+resilient to circumvent possible WiFi issues.  But it seems that it
+can't work simultaneously with WiFi and that means no network access
+on controller or client devices limiting usability, in addition to
+more new code and complexity.  Solution with another proxy device
+would still require WiFi to relay messages to controller.  One
+strategically placed Access Point is better solution.  ESP-WIFI-MESH
+may be more interesting than ESP-NOW or SoftAP for standalone network.
 
 Due to the various factors it will take some time until this project
 has priority again so I wanted to publish and back up it in current
@@ -39,6 +45,7 @@ Future to-do list:
 - sending various data to time series database for analysis or monitoring
 - figure out a way to make nice looking front panel for mounting
   display and buttons
+  
 
 ## License
 
@@ -87,7 +94,11 @@ controlling.  Uses less pins but 1 is still needed from ADC2.
   be easily managed with remote configuration.
 
 - Collect temperature at client devices and send it via API.  In this
-  situation ontroller does not have control over data collection.
+  situation controller does not have control over data collection and
+  depends on working wireless network. (Encrypted, authenticated UDP
+  datagram updates are sent to controller so this is the easiest
+  option but other sources can still use API to submit zone
+  temperature and trigger value.)
   
 ### Bill Of Materials
 
@@ -425,7 +436,7 @@ Only tested with ESP-IDF driver.
 
 ### `sendto: Not enough space`
 
-To many datagrams are queueing unacknowledged on WiFi, increasing
+Too many datagrams are queueing unacknowledged on WiFi, increasing
 `CONFIG_ESP32_WIFI_DYNAMIC_TX_BUFFER_NUM` or lowering period in
 `thermostat_update` should help.  Or maybe increasing WiFi signal
 quality.  This may be affected by collecting temperature too often on
