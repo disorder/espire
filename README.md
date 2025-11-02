@@ -194,6 +194,8 @@ There are certain aspects that could be considered insecure (some if
 - OTA update image is trusted (hardcoded URL only)
 - UDP datagrams with temperature settings may be accepted without
   authentication if encryption is not enabled
+- UDP datagrams are not protected against replay attack
+  (needs reliable system time or synced NTP)
 
 Default configuration with HTTPS, Digest auth, `API_KEY` and UDP
 encryption cover most of these against simple remote attacks.  Log is
@@ -269,7 +271,8 @@ Button handling is up to the application developer but current scheme is:
 - Toggle:
   - short press when changed - reset temperature change
   - short press when not changed - cycle display modes
-  - long press - save temperature change
+  - long press - save temperature change (when changed)
+  - long press - negate temperature (when not changed)
   - 2s long press - display off
   - 5s reboot
 
@@ -338,7 +341,7 @@ Hopefully complete list of calls from `api.c`:
   `changed`/`repeats`/`longs` you can adjust other parameters of
   button press/release
 - `/heap` - free heap size
-- `/ota` - trigger OTA
+- `/ota` - trigger OTA (with `force=1` and API key will force same version)
 - `/gpio` - GPIO allocations
 - `/temp/zone` - without `name` returns ADC+relay pins (`name=tpin+rpin`),
   with `name` sets either `adc` or `relay` pin number
@@ -371,7 +374,8 @@ Hopefully complete list of configuration options from `auto.c`:
 - `controller_ip=VALUE` - IPv4
 - `hostname=VALUE`
 - `temp_zone_adc=NAME=PIN` - written to NVS as `tpin.NAME`
-- `temp_zone_relay=NAME=PIN` - written to NVS as `rpin.NAME`
+- `heating_relay=NAME=PIN` - written to NVS as `rpin.NAME`
+- `tset.NAME=VALUE[float]` - `set` temperature value (controller)
 - `th.udp.key=base64(VALUE)` - AES key (see UDP request security)
 - `th.udp.iv=base64(VALUE)` - AES IV (see UDP request security)
 - `th.udp.secret=VALUE[STR]` - passphrase to verify authenticity
@@ -600,8 +604,8 @@ Fallback device configuration will have hostname "dummy" and zone name
 should be configured with the same name to display temperature.  For
 this to work there needs to be thermostat defined (thermostat
 parameters and count) in device configuration `controller_defs`.  It
-will be then allocate GPIO pin.  Other configuration changes can be
-delivered with autoconfiuration server at runtime.
+will then allocate GPIO pin.  Other configuration changes can be
+delivered with autoconfiguration server at runtime.
 
 GPIO pin allocation is logged after boot (or via API `/gpio`).  Next
 step is configuring this PIN as NVS key via autoconfiguration server

@@ -61,6 +61,7 @@ void hostname_set(char *hostname);
 
 #include <time.h>
 size_t format_time(time_t time, char *strftime_buf, int size, char *fmt);
+char *set_time(char *dt);
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"

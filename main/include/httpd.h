@@ -21,6 +21,9 @@ typedef struct
     list_t handlers;
 } httpd_t;
 
+extern httpd_uri_t httpd_default_handlers[];
+extern int httpd_default_handlers_cnt;
+
 httpd_t *httpd_new(int port);
 void httpd_run(httpd_t *self, int run);
 list_t *httpd_register(httpd_t *self, httpd_uri_t *uri);

@@ -379,7 +379,12 @@ uint32_t thermistor_read_vout(thermistor_handle_t* th)
         start_c = 0;
         start_i = i;
     }
-    adc_reading /= samples;
+    // prevent division by zero
+    if (!samples) {
+        ESP_LOGE(TAG, "no samples GPIO %d", th->gpio);
+    } else {
+        adc_reading /= samples;
+    }
 
     ESP_LOGI(TAG, "histogram >=%d, %d samples, %d", 10*(NO_OF_SAMPLES/64), samples, adc_reading);
 

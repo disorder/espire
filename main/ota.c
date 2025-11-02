@@ -34,6 +34,7 @@
 #include "ble_api.h"
 #endif
 
+int ota_force = 0;
 static const char *TAG = "ota";
 //extern const uint8_t server_cert_pem_start[] asm("_binary_ca_cert_pem_start");
 //extern const uint8_t server_cert_pem_end[] asm("_binary_ca_cert_pem_end");
@@ -54,8 +55,12 @@ static esp_err_t validate_image_header(esp_app_desc_t *new_app_info)
 
 #ifndef CONFIG_EXAMPLE_SKIP_VERSION_CHECK
     if (memcmp(new_app_info->version, running_app_info.version, sizeof(new_app_info->version)) == 0) {
-        ESP_LOGW(TAG, "Current running version is the same as a new. We will not continue the update.");
-        return ESP_FAIL;
+        if (ota_force) {
+            ESP_LOGW(TAG, "reapplying current version");
+        } else {
+            ESP_LOGW(TAG, "Current running version is the same as a new. We will not continue the update.");
+            return ESP_FAIL;
+        }
     }
 #endif
 

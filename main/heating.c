@@ -45,8 +45,12 @@ heating_t *heating_find(char *name, int create)
         data = calloc(1, sizeof(heating_t));
         assert(data != NULL);
         strncpy(data->name, name, sizeof(data->name));
+        data->valid = xTaskGetTickCount();
         data->val = NAN;
         data->set = NAN;
+        for (int i=0; i<COUNT_OF(data->vals); i++)
+            data->vals[i] = NAN;
+        data->relay = -1;
         char key[5+member_size(heating_t, name)] = "tset.";
         strncpy(key+5, data->name, strlen(data->name));
         size_t size = 0;
@@ -56,7 +60,7 @@ heating_t *heating_find(char *name, int create)
             data->set = strtof(set, NULL);
             free(set);
         }
-        temp_zone_init(name);
+        //temp_zone_init(name);
         list_prepend(&zones, data);
     }
 
@@ -75,20 +79,27 @@ inline iter_t heating_next(iter_t iter, heating_t **zone)
 
 static void heating_action(heating_t *data)
 {
+    /*
     th_zone_t *zone = temp_zone_find(data->name);
     if (zone == NULL) {
-        ESP_LOGE(TAG, "unknown zone %s", data->name);
+        ESP_LOGE(TAG, "unknown zone '%s'", data->name);
         return;
     }
+    */
 
-    if (zone->relay < 0) {
-        ESP_LOGE(TAG, "no relay for %s", data->name);
+    if (data->relay < 0) {
+        ESP_LOGE(TAG, "no relay for '%s'", data->name);
         return;
     }
 
     if (data->val >= 45.0 || data->val <= 0.0) {
         // something's wrong with data, close
-        relay_set_gpio(zone->relay, !HEATING_ON);
+#ifdef RELAY_3V3
+        relay_init_gpio(data->relay);
+        relay_set_gpio(data->relay, !HEATING_ON);
+#else
+        relay_set_gpio_5v(data->relay, !HEATING_ON);
+#endif
         return;
     }
 
@@ -108,7 +119,12 @@ static void heating_action(heating_t *data)
     if (isnanf(data->val))
         state = !HEATING_ON;
     if (data->state == state) {
-        relay_set_gpio(zone->relay, state);
+#ifdef RELAY_3V3
+        relay_init_gpio(data->relay);
+        relay_set_gpio(data->relay, state);
+#else
+        relay_set_gpio_5v(data->relay, state);
+#endif
         return;
     }
 
@@ -128,7 +144,13 @@ static void heating_action(heating_t *data)
             return;
     }
 
-    relay_set_gpio(zone->relay, state);
+#ifdef RELAY_3V3
+    relay_init_gpio(data->relay);
+    relay_set_gpio(data->relay, state);
+#else
+    relay_set_gpio_5v(data->relay, state);
+#endif
+    relay_set_gpio(data->relay, state);
 
     if (data->state != state) {
         data->state = state;
@@ -137,7 +159,8 @@ static void heating_action(heating_t *data)
     }
 }
 
-heating_t *heating_temp_val(char *name, float val)
+static void th_send(int req, char *name, float val, float set);
+heating_t *heating_temp_val(char *name, float val, int apply)
 {
     heating_t *data = heating_find(name, 1);
     if (data == NULL)
@@ -149,22 +172,30 @@ heating_t *heating_temp_val(char *name, float val)
     if (data->c < COUNT_OF(data->vals))
         data->c += 1;
     for (int i=0; i<data->c; i++)
-        if (data->vals[i] < val)
+        if (!isnanf(data->vals[i]) && data->vals[i] < val)
             val = data->vals[i];
 
     if (val != data->val)
         oled_update.temp = 1;
     data->prev = data->val;
     data->val = val;
+    data->valid = xTaskGetTickCount();
 
     ESP_LOGI(TAG, "saving temp val '%s'=%.1f => %.1f", name, data->prev, data->val);
-    heating_action(data);
+    // measuring was supposed to happen on controller
+    // but now measuring can be anywhere
+    if (temp_zone_find(data->name) != NULL) {
+        ESP_LOGW(TAG, "sending update '%s'=%.1f", data->name, data->val);
+        th_send('!', data->name, data->val, NAN);
+    }
+
+    if (apply)
+        heating_action(data);
     return data;
 }
 
-// this function is not restricted by HEATING_TEMP_MAX
 // can be manually used with HTTP request and apikey (if set)
-heating_t *heating_temp_set(char *name, float set)
+heating_t *heating_temp_set(char *name, float set, int apply)
 {
     heating_t *data = heating_find(name, 1);
     if (data == NULL)
@@ -179,13 +210,49 @@ heating_t *heating_temp_set(char *name, float set)
         // only "xx.x"
         char key[5+member_size(heating_t, name)] = "tset.";
         strncpy(key+5, data->name, strlen(data->name));
-        char value[2+1+1 +1];
-        if (snprintf(value, sizeof(value), "%.1f", value) > 0)
+        // +1 char allow negative to disable heating
+        char value[1+2+1+1 +1];
+        if (snprintf(value, sizeof(value), "%.1f", set) > 0)
             nv_write_str(key, value);
 
-        heating_action(data);
+        if (apply)
+            heating_action(data);
     } else
         ESP_LOGI(TAG, "ignoring temp set '%s'=%.1f", name, set);
+    return data;
+}
+
+// relay=-1 will only reset relay
+heating_t *heating_relay(char *name, int relay)
+{
+    int len = strlen(name);
+    if (len >= member_size(heating_t, name)) {
+        ESP_LOGE(TAG, "zone name too long: '%s'", name);
+        return NULL;
+    }
+    if (name[0] == '\0') {
+        ESP_LOGE(TAG, "zone name too short");
+        return NULL;
+    }
+
+    char rkey[5+member_size(th_zone_t, name)] = "rpin.";
+    strncpy(rkey+5, name, len);
+    if (relay == -1) {
+        nv_remove(rkey);
+    } else {
+        int8_t rval = (int8_t) relay;
+        nv_write_i8(rkey, rval);
+    }
+
+    // zone->relay should be dropped and command move to heating_relay()
+    heating_t *data = heating_find(name, 1);
+    if (relay == -1) {
+        ESP_LOGI(TAG, "clearing heating relay %s", name);
+    } else if (data->relay != relay) {
+        ESP_LOGI(TAG, "setting heating %s relay %d (was %d)", name, relay, data->relay);
+    }
+    data->relay = relay;
+
     return data;
 }
 
@@ -318,8 +385,10 @@ static void thermostat_udp(void *pvParameter)
     char buf[HEATING_DGRAM_SIZE];
     char dec[HEATING_DGRAM_SIZE];
 #endif
+    // thudp.py is useful for debugging:
+    // # = reboot, ! = set, * = get all zones, ? = get zone name
     // this is all very ugly, datagram payload format is
-    // 1 byte = ? or ! or #
+    // 1 byte = * or ? or ! or #
     // sizeof name (including '\0')
     // sizeof val (little endian)
     // sizeof set (little endian)
@@ -351,10 +420,11 @@ static void thermostat_udp(void *pvParameter)
         }
 
         dec[1+member_size(heating_t, name)-1] = '\0';
-        if (dec[0] != '*')
+        if (dec[0] != '*') {
             data = heating_find(dec+1, dec[0] == '!');
-        if (data == NULL && dec[0] != '*')
-            continue;
+            if (data == NULL)
+                continue;
+        }
 
         if (dec[0] == '?' || dec[0] == '*') {
             iter_t iter = NULL;
@@ -378,23 +448,54 @@ static void thermostat_udp(void *pvParameter)
                     ESP_LOGE(TAG, "sendto: %s", strerror(errno));
 
                 ESP_LOGD(TAG, "sending '%s'", data->name);
+                if (dec[0] == '?')
+                    break;
                 data = NULL;
                 if (iter != NULL)
                     iter = heating_next(iter, &data);
              }
         } else if (dec[0] == '!') {
             time(&oled_update.temp_last);
-            typeof(data->val) val;
+            typeof(data->val) val = NAN;
             typeof(data->set) set;
-            memcpy(&val, dec+1+member_size(heating_t, name), sizeof(data->val));
             memcpy(&set, dec+1+member_size(heating_t, name)+sizeof(data->set), sizeof(data->set));
-            // to avoid tampering, controller will only accept set, not val
-            // controller is collecting data and updating val
-            if (!esp.dev->controller && !isnan(val)) {
-                if (val != data->val)
-                    oled_update.temp = 1;
-                data->val = val;
+            memcpy(&val, dec+1+member_size(heating_t, name), sizeof(data->val));
+
+            th_zone_t *zone = temp_zone_find(data->name);
+            int local = !esp.dev->controller && (strncmp(data->name, esp.dev->hostname, member_size(heating_t, name)) == 0);
+
+            if (esp.dev->controller) {
+                int apply = 0;
+                if (!isnan(set)) {
+                    heating_temp_set(data->name, set, 0);
+                    apply = 1;
+                }
+                if (zone == NULL) {
+                    heating_temp_val(data->name, val, 0);
+                    apply = 1;
+                }
+                // remotely measured, apply and enact
+                // but original proposal was to measure on controller only
+                if (zone == NULL && apply)
+                    heating_action(data);
+                // no display to handle
+                continue;
             }
+
+            // non-local zones on client device
+            if (!local) {
+                data->val = val;
+                data->set = set;
+                continue;
+            }
+
+            if (!isnan(val)) {
+                if (val != data->val) {
+                    data->val = val;
+                    oled_update.temp = 1;
+                }
+            }
+
             if (!isnan(set)) {
                 if (set <= HEATING_TEMP_MAX + .1)
                     data->set = set;
@@ -404,9 +505,11 @@ static void thermostat_udp(void *pvParameter)
                 }
                 if (isnanf(oled_update.temp_mod) || !oled_update.temp_pending) {
                     // initialize UI with controller value
-                    // or update keep mod value updated if not pending
-                    // (not sure about that behaviour)
-                    oled_update.temp_mod = set;
+                    // or update keep set value updated if not pending
+                    // if update comes from controller mod will be editable
+                    oled_update.temp_set = set;
+                    if (isnanf(oled_update.temp_mod))
+                        oled_update.temp_mod = oled_update.temp_set;
                 }
             }
         } else {
@@ -421,9 +524,46 @@ static void thermostat_update(void *pvParameter)
         if (oled_update.temp_pending)
             th_send('!', esp.dev->hostname, NAN, oled_update.temp_set);
         //th_send('?', esp.dev->hostname, 0, 0);
+        // requesting all zones from controller - good for displaying
         th_send('*', NULL, 0, 0);
 
         _vTaskDelay((oled_update.temp_pending)? S_TO_TICK(1) : S_TO_TICK(5));
+    }
+}
+
+#define CHECK_PERIOD_S 10
+// reboot will prevent aging, timestamp can't be relied on
+#define MAX_AGE_S (OFFLINE_REBOOT-(2*CHECK_PERIOD_S))
+static void thermostat_aging(void *pvParameter)
+{
+    while (1) {
+        TickType_t tick_now = xTaskGetTickCount();
+        iter_t iter = heating_iter();
+        heating_t *data;
+        while ((iter = heating_next(iter, &data)) != NULL) {
+            // TODO maybe configurable time via API?
+            if (tick_now > data->valid + S_TO_TICK(MAX_AGE_S)) {
+                // this is very important - maybe we should do it at boot
+                ESP_LOGW(TAG, "temperature for '%s' is too old", data->name);
+                // start erasing circular buffer
+                heating_temp_val(data->name, NAN, 0);
+                // enforce action
+                data->prev = data->val;
+                data->val = NAN;
+                heating_action(data);
+                /*
+#ifdef RELAY_3V3
+                relay_init_gpio(gpio);
+                relay_set_gpio(gpio, !HEATING_ON);
+#else
+                relay_set_gpio_5v(gpio, !HEATING_ON);
+#endif
+                */
+            } else {
+                //ESP_LOGI(TAG, "temperature for '%s' is ok %d", data->name, data->valid);
+            }
+        }
+        _vTaskDelay(S_TO_TICK(CHECK_PERIOD_S));
     }
 }
 
@@ -451,7 +591,54 @@ void thermostat_init()
     th_aes_init();
 #endif
 
+    // initialize all known relays
+    nvs_iterator_t iter = NULL;
+    esp_err_t res = nvs_entry_find(NVS_LABEL, NVS_NAMESPACE, NVS_TYPE_I8, &iter);
+    while (res == ESP_OK) {
+        nvs_entry_info_t info;
+        nvs_entry_info(iter, &info);
+
+        if (strncmp(info.key, "rpin.", sizeof("rpin.")-1) != 0)
+            goto NEXT;
+
+        nvs_handle_t h;
+        int8_t gpio;
+        ESP_ERROR_CHECK(nvs_open(info.namespace_name, NVS_READONLY, &h));
+        ESP_ERROR_CHECK(res = nvs_get_i8(h, info.key, &gpio));
+        nvs_close(h);
+        if (gpio_owner(gpio)) {
+            ESP_LOGW(TAG, "skipping used %s GPIO %d", info.key, gpio);
+            goto NEXT;
+        }
+        ESP_LOGW(TAG, "initializing %s GPIO %d", info.key, gpio);
+
+        // with aging this is unnecessary, aging will take care of it
+        // but it depends on default action being turning off
+        // and not crashing before it can happen
+        // (hw boot resets pin anyway but software reboot/abort does not)
+        /*
+#ifdef RELAY_3V3
+        relay_init_gpio(gpio);
+        relay_set_gpio(gpio, !HEATING_ON);
+#else
+        relay_set_gpio_5v(gpio, !HEATING_ON);
+#endif
+        */
+
+        // create zone
+        heating_relay(&info.key[5], gpio);
+        // there is no guarantee someone will send anything
+        // but there is default action on NAN...
+        //heating_action(data);
+
+    NEXT:
+        res = nvs_entry_next(&iter);
+    }
+    nvs_release_iterator(iter);
+
     xxTaskCreate((void (*)(void*))thermostat_udp, "th_udp", 2*1024, NULL, 0, NULL);
     if (!esp.dev->controller)
         xxTaskCreate((void (*)(void*))thermostat_update, "th_update", 2*1024, NULL, 0, NULL);
+    else
+        xxTaskCreate((void (*)(void*))thermostat_aging, "th_aging", 2*1024, NULL, 0, NULL);
 }

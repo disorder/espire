@@ -264,6 +264,7 @@ void device_init(device_t *dev)
 {
     assert(esp.sockets != NULL);
     esp.dev = dev;
+    ESP_LOGW(TAG, "is controller: %d", esp.dev->controller);
     log_init();
 
     // already initialized, only way is to set CONFIG_ESP_TASK_WDT_PANIC
@@ -271,20 +272,24 @@ void device_init(device_t *dev)
 
     dummy_new();
 
+    // controller needs pins for relay
+    if (!esp.dev->controller) {
 #ifdef OLED_SSD1306
-    oled_ssd1306_init(&oled);
+        oled_ssd1306_init(&oled);
 #endif
-    if (oled.scr == NULL) {
+        if (oled.scr == NULL) {
 #ifdef LCD_ST7735S
-        tft_st7735s_init(&oled);
+            tft_st7735s_init(&oled);
 #elif defined(LCD_ST7789_1) || defined(LCD_ST7789_2)
-        tft_st7789_init(&oled);
+            tft_st7789_init(&oled);
 #endif
-    } else {
-        // SPI currently conflicts with CO2 UART GPIO
-        // this feature is currently just for testing CO2 sensor anyway
-        co2_init();
+        } else {
+            // SPI currently conflicts with CO2 UART GPIO
+            // this feature is currently just for testing CO2 sensor anyway
+            co2_init();
+        }
     }
+
     if (oled.scr != NULL) {
         theme_init(&oled);
         TimerHandle_t oled_time_timer = NULL;
@@ -321,6 +326,7 @@ void device_init(device_t *dev)
     esp_log_level_set("http", ESP_LOG_WARN);
     esp_log_level_set("ftplib", ESP_LOG_WARN);
     esp_log_level_set("ftp", ESP_LOG_WARN);
+    esp_log_level_set("ping", ESP_LOG_WARN);
     esp_log_level_set("co2", ESP_LOG_INFO);
     esp_log_level_set("module", ESP_LOG_WARN);
     esp_log_level_set("esp-x509-crt-bundle", ESP_LOG_WARN);
@@ -349,11 +355,23 @@ void device_init(device_t *dev)
     ESP_LOGI(TAG, "MAC: %s", &smac);
     //read_mac(NULL);
 
+    // this is useless now - relay has 5V pins + initialized by heating
     // before temp because it can use 2 ADC1 pins
-// TODO tft
-//    relay_init(dev->relays);
-//    for (int i=0; i<dev->relays; i++)
-//        relay_set_pin(i, 0);
+// TODO tft ... what whas this, no relay if TFT?
+#ifdef RELAY_3V3
+    relay_init(dev->relays, 0);
+#else
+    relay_init(dev->relays, 1);
+#endif
+    // initialized by heating
+    /*
+    for (int i=0; i<dev->relays; i++) {
+#ifdef RELAY_3V3
+        relay_set_pin(i, !HEATING_ON);
+#else
+        relay_set_pin_5v(i, !HEATING_ON);
+#endif
+    */
 
     // this needs to go last because it can allocate remaining ADC2
     // and after relay so that ADC1 outputs won't get used
@@ -444,7 +462,9 @@ void sleep_task(sleep_t *self)
         //if ((!esp.dev->controller || ntp_synced) && now.tv_sec - esp.activity >= 60 && wifi_count == 0) {
         // TODO hard bypass for active CO2 data collection - to calibrate
         // FIXME TODO bypassed sleep seems more stable - either this branch or sleep/wake itself causes it
-        esp.activity = now.tv_sec;
+        // TODO testing again
+        //esp.activity = now.tv_sec;
+        // co2 doesn't sleep, controller only after NTP sync
         if (co2_ppm == -1 &&
             (!esp.dev->controller || ntp_synced) && now.tv_sec - esp.activity >= 60 && wifi_count == 0) {
             // inhibits button handler - doesn't seem to work as expected
@@ -463,14 +483,14 @@ void sleep_task(sleep_t *self)
                 oled_update.mode_restore = mode;
                 oled_update.mode = CLOCK;
                 oled_update.invalidate = 1;
-                if (ntp_synced && tm.tm_hour < 6 && oled.power)
+                if (dt_synced && tm.tm_hour < 6 && oled.power)
                     oled_update.power_state = 0;
                 // time not cleared for some reason and date garbled
                 oled_top_right(0, NULL);
                 oled_top_left(0, NULL);
                 // seeing some uncleared parts with 300
                 _vTaskDelay(MS_TO_TICK(400));
-            } else if (ntp_synced && tm.tm_hour < 6 && oled.power)
+            } else if (dt_synced && tm.tm_hour < 6 && oled.power)
                 oled_update.power_state = 0;
 
             external_wake = 0;
@@ -523,7 +543,7 @@ void sleep_task(sleep_t *self)
                 //oled_update.mode_restore = -1;
                 //oled_update.mode = mode;
                 oled_update.invalidate = 1;
-            } else if (ntp_synced && tm.tm_hour >= 6 && power && oled.power != 1 && oled_update.power_state != 1) {
+            } else if (dt_synced && tm.tm_hour >= 6 && power && oled.power != 1 && oled_update.power_state != 1) {
                 if (oled_update.power_default)
                     oled_update.power_state = 1;
             }

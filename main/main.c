@@ -159,6 +159,14 @@ void button_handler(button_t *b)
                         oled_update.invalidate = 1;
                     } else {
                         // long press without change
+                        // TODO only works if data->set is not NAN?
+                        // TODO not propagating?
+                        // invert - effectively toggles heating
+                        oled_update.temp_mod *= -1;
+                        oled_update.temp_set = oled_update.temp_mod;
+                        oled_update.temp_pending = 1;
+                        ESP_LOGI(TAG, "value set: %f", oled_update.temp_set);
+                        oled_update.invalidate = 1;
                     }
                 }
                 break;
@@ -183,38 +191,66 @@ void button_handler(button_t *b)
 
 th_def_t controller_defs[] = {
     {
-        .cnt = 1,//10,
+        .cnt = 10,
         .th = &th_4k7,
         .label = "th_4k7",
     },
-    // TODO 2 more
+    // TODO 2 more - test
     {
         .cnt = 0,//2,
+        .th = &th_1k,
+        .label = "th_1k",
+    },
+};
+
+th_def_t client_defs[] = {
+    // TODO only testing
+    {
+        .cnt = 1,
         .th = &th_4k7,
         .label = "th_4k7",
     },
 };
 
+th_def_t co2_defs[] = {
+    {
+        .cnt = 1,
+        .th = &th_1k,
+        .label = "th_1k",
+    },
+};
+
 device_t devices[] = {
     {
+        .controller = 0,
         .mac = "\x9C\x9C\x1F\xCA\x05\x00",
         // with openwrt you can configure IP by MAC or just dig -r hostname @gw
         // static ip configuration is not needed
         .hostname = "esp32dev",
-        .metar = 1,
-        .relays = 1,
-        .th_def_cnt = COUNT_OF(controller_defs),
-        .th_defs = (th_def_t *) &controller_defs,
+        .metar = 0,
+        .relays = 0,
+        .th_def_cnt = COUNT_OF(client_defs),
+        .th_defs = (th_def_t *)&client_defs,
     },
 
     {
         .controller = 1,
-        //.mac = "\x0C\xB8\x15\xEC\x95\x90",
+        // only way to initialize controller
+        .mac = "\x24\xD7\xEB\x0E\xCD\xFC",
         .hostname = "ctrl",
         .metar = 0,
-        .relays = RELAY_CNT,
+        .relays = 10,//RELAY_CNT,
         .th_def_cnt = COUNT_OF(controller_defs),
-        .th_defs = (th_def_t *) &controller_defs,
+        .th_defs = (th_def_t *)&controller_defs,
+    },
+
+    {
+        .controller = 0,
+        .mac = "\x0C\xB8\x15\xEC\x95\x90",
+        .hostname = "co2",
+        .metar = 1,
+        .th_def_cnt = COUNT_OF(co2_defs),
+        .th_defs = (th_def_t *) &co2_defs,
     },
 
     // default configuration goes last - this is for generic client devices
@@ -224,6 +260,8 @@ device_t devices[] = {
         .mac = (char *) &mac,
         .hostname = HOSTNAME_DEFAULT,
         .metar = 1,
+        .th_def_cnt = COUNT_OF(client_defs),
+        .th_defs = (th_def_t *) &client_defs,
     },
 };
 
@@ -240,9 +278,8 @@ void wakeup_cb(int external_wake)
 void app_main(void)
 {
     system_init();
-    // TODO
     // start logging now
-    //log_init();
+    log_init();
 
     // TODO this seems to sleep
     /*

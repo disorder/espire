@@ -45,8 +45,12 @@ inline iter_t module_next(iter_t iter, module_t **module)
 void module_offline(int timeout)
 {
     ESP_LOGI(TAG, "trigger offline timeout=%d", timeout);
-    if (OFFLINE_REBOOT && timeout > OFFLINE_REBOOT)
+    if (OFFLINE_REBOOT && timeout > OFFLINE_REBOOT) {
+        ESP_LOGE(TAG, "offline reboot");
+        // give log chance to be sent out
+        _vTaskDelay(S_TO_TICK(2));
         esp_system_abort("offline limit");
+    }
 
     iter_t iter = module_iter();
     module_t *m;

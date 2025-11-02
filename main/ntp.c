@@ -9,6 +9,7 @@
 static const char *TAG = "ntp";
 
 int ntp_synced = 0;
+int api_synced = 0;
 time_t ntp_start = 0;
 
 static void ntp_task(void *pvParameter)
@@ -36,6 +37,9 @@ void ntp_init(void)
     sntp_setoperatingmode(SNTP_OPMODE_POLL);
     sntp_setservername(0, NTP_SERVER1);
     sntp_setservername(1, NTP_SERVER2);
+    // default
+    //sntp_set_sync_mode(SNTP_SYNC_MODE_IMMED);
+    // not sure what else is needed sntp_setserver()
     //sntp_servermode_dhcp(1);
     sntp_init();
 

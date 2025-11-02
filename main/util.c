@@ -4,8 +4,11 @@
 #include <string.h>
 #include "config.h"
 #include "device.h"
+#include "ntp.h"
 #include "util.h"
 
+#include <sys/time.h>
+#include <time.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "esp_mac.h"
@@ -22,6 +25,30 @@ size_t format_time(time_t time, char *strftime_buf, int size, char *fmt)
     //tzset();
     localtime_r(&time, &timeinfo);
     return strftime(strftime_buf, size, fmt, &timeinfo);
+}
+
+char *set_time(char *dt)
+{
+    struct tm tm = {0};
+    char *fmt = "%Y-%m-%dT%H:%M:%S";
+    char *ret = strptime(dt, fmt, &tm);
+    ESP_LOGW(TAG, "%ssetting time %s: %04d-%02d-%02d %02d:%02d:%02d",
+             (ret == NULL) ? "not " : "",
+             dt, tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,
+             tm.tm_hour, tm.tm_min, tm.tm_sec);
+    if (ret == NULL)
+        return ret;
+
+    //ESP_LOGW(TAG, "setting time %s: %d-%d-%d %d:%d:%d",
+    //         dt, tm.tm_year, tm.tm_mon, tm.tm_mday,
+    //         tm.tm_hour, tm.tm_min, tm.tm_sec);
+    time_t t = mktime(&tm);
+    struct timeval tv = {t, 0};
+    struct timezone *tz = NULL;
+    ntp_synced = 0;
+    api_synced = t;
+    settimeofday(&tv, tz);
+    return ret;
 }
 
 inline void print_mac(char *mac) {

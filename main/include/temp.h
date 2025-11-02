@@ -14,7 +14,6 @@ typedef struct {
 
 typedef struct {
     int adc;
-    int relay;
     char name[member_size(heating_t, name)];
 } th_zone_t;
 
@@ -26,7 +25,6 @@ void temp_run(temp_t *dummy, int run);
 th_zone_t *temp_zone_find(char *name);
 void temp_zone_init(char *name);
 th_zone_t *temp_zone_adc(char *name, int adc);
-th_zone_t *temp_zone_relay(char *name, int relay);
 void temp_zone_load();
 
 #endif /* __TEMP_H__ */

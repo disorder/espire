@@ -37,9 +37,9 @@ extern struct sockaddr_in CONTROLLER_SA;
 #define HOSTNAME_DEFAULT "dummy"
 #include "heating.h"
 extern char HOSTNAME[member_size(heating_t, name)];
-// for Normally Closed heating is off when relay signal is low
+// Normally Closed valve + Normally Open relay - heating is off when high
 // per-relay NC/NO is not implemented
-#define HEATING_ON 1
+#define HEATING_ON 0
 
 // TODO
 //#define LOG_IP "10.0.0.9"
@@ -87,7 +87,7 @@ extern char HOSTNAME[member_size(heating_t, name)];
 // adding more handlers will require httpd restart and will add the same amount
 #ifdef HTTPD_SSL
 // restart seems to break SSL, getting two handshakes and a failure
-#define HTTPD_MAX_URI_HANDLERS 30
+#define HTTPD_MAX_URI_HANDLERS 40
 #else
 #define HTTPD_MAX_URI_HANDLERS 10
 #endif

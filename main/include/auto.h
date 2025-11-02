@@ -27,6 +27,8 @@ struct auto_handler {
     //char key[NVS_KEY_NAME_MAX_SIZE];
 };
 
+extern auto_t *auto_singleton;
+
 auto_t *auto_init();
 void auto_run(auto_t *dummy, int run);
 void auto_handler_add(auto_t *self, auto_handler_t *handler);

@@ -173,7 +173,7 @@ void oled_temp(int locked, float room, float set, float mod)
             lv_obj_add_flag(l2, LV_OBJ_FLAG_HIDDEN);
         }
 
-        char buf[2+2 +1 +1];
+        char buf[1+2+1+1 +1 +1];
         if (!isnanf(set) && fabs(set - mod) < 0.05) {
             lv_label_set_text(l0, "");
             snprintf(buf, sizeof(buf), "%.1f", set);

@@ -95,10 +95,14 @@ static void thermistor_read(thermistor_handle_t *th)
 
     for (int i=0; i<COUNT_OF(ths); i++) {
         if (temp_zones[i].name[0] != '\0' && temp_zones[i].adc == adc_channel_to_gpio(th->adc_unit, th->channel)) {
+            // this is fine for now but exterior temperature may be over/under
+            // negating temperature to disable heating may work well but
+            // TODO need some flag to increase range for exterior thermistor
+            //      or use value from ebus
             if (th->celsius < 45.0 && th->celsius > 0.0)
-                heating_temp_val(temp_zones[i].name, th->celsius);
+                heating_temp_val(temp_zones[i].name, th->celsius, 1);
             else
-                heating_temp_val(temp_zones[i].name, NAN);
+                heating_temp_val(temp_zones[i].name, NAN, 1);
             // there normally can't be 2 names for gpio
             break;
         }
@@ -217,6 +221,7 @@ void temp_zone_load()
     while (res == ESP_OK) {
         nvs_entry_info_t info;
         nvs_entry_info(iter, &info);
+
         if (strlen(info.key) > sizeof("tpin.")-1 && memcmp(info.key, "tpin.", sizeof("tpin.")-1) == 0) {
             char *zone = info.key + sizeof("tpin.")-1;
             ESP_LOGI(TAG, "loading zone '%s'", zone);
@@ -246,9 +251,12 @@ void temp_zone_init(char *name)
     if (nv_read_i8(tkey, &val) == ESP_OK)
         temp_zone_adc(name, val);
 
+    // this is useless in temp zone, moving to heating init
+    /*
     tkey[0] = 'r';
     if (nv_read_i8(tkey, &val) == ESP_OK)
-        temp_zone_relay(name, val);
+        heating_relay(name, val);
+    */
 }
 
 // adc=-1 to clear
@@ -299,10 +307,12 @@ th_zone_t *temp_zone_adc(char *name, int adc)
             nv_write_i8(tkey, adc);
 
             // load from flash
+            /*
             int8_t rpin = -1;
             tkey[0] = 'r';
             nv_read_i8(tkey, &rpin);
             temp_zones[i].relay = (int) rpin;
+            */
 
             return &temp_zones[i];
         }
@@ -310,47 +320,6 @@ th_zone_t *temp_zone_adc(char *name, int adc)
 
     if (!ok && adc >= 0) {
         ESP_LOGE(TAG, "could not find slot for temp_zone_adc %s=%d", name, adc);
-    }
-
-    return NULL;
-}
-
-// relay=-1 will only reset relay
-th_zone_t *temp_zone_relay(char *name, int relay)
-{
-    int len = strlen(name);
-    if (len >= member_size(th_zone_t, name)) {
-        ESP_LOGE(TAG, "zone name too long: '%s'", name);
-        return NULL;
-    }
-    if (name[0] == '\0') {
-        ESP_LOGE(TAG, "zone name too short");
-        return NULL;
-    }
-
-    char rkey[5+member_size(th_zone_t, name)] = "rpin.";
-    strncpy(rkey+5, name, len);
-    if (relay == -1) {
-        nv_remove(rkey);
-    } else {
-        int8_t rval = (int8_t) relay;
-        nv_write_i8(rkey, rval);
-    }
-
-    for (int i=0; i<COUNT_OF(ths); i++) {
-        if (temp_zones[i].name[0] == '\0')
-            continue;
-        if (strncmp(temp_zones[i].name, name, sizeof(temp_zones[i].name)) != 0)
-            continue;
-
-        if (relay == -1) {
-            ESP_LOGI(TAG, "clearing zone relay %s", name);
-        } else if (temp_zones[i].relay != relay) {
-            ESP_LOGI(TAG, "setting zone %s relay %d (was %d)", name, relay, temp_zones[i].relay);
-        }
-
-        temp_zones[i].relay = relay;
-        return &temp_zones[i];
     }
 
     return NULL;

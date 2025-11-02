@@ -3,6 +3,7 @@ import socket
 import sys
 import os
 import argparse
+from collections import defaultdict
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument('--port', dest='port', action='store', type=int,
@@ -31,13 +32,28 @@ BUFSIZE = 65536
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 sock.bind((args.ip, args.port))
 ips = {}
+rest = defaultdict(bytes)
 while True:
     data, addr = sock.recvfrom(BUFSIZE)
     ip, _ = addr
+    contd = False
 
     if args.tee:
+        # prevent splitting lines
+        if ip in rest:
+            contd = True
+            sys.stdout.buffer.write((ip + ': ').encode('ascii'))
+            sys.stdout.buffer.write(rest[ip])
+            del rest[ip]
+
         if (args.tee_ip):
-            sys.stdout.write((ip + ': ').encode('ascii'))
+            if data[-1] != b'\n':
+                last = data.rfind(b'\n')
+                if last >= 0:
+                    rest[ip] = data[last+1:]
+                    data = data[:last+1]
+            if not contd:
+                sys.stdout.buffer.write((ip + ': ').encode('ascii'))
         sys.stdout.buffer.write(data)
         sys.stdout.flush()
 

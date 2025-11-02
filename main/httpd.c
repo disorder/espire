@@ -351,7 +351,7 @@ static esp_err_t ctrl_put_handler(httpd_req_t *req)
 }
 #endif
 
-static httpd_uri_t default_handlers[] = {
+httpd_uri_t httpd_default_handlers[] = {
 #if defined(HTTPD_ROOT)
     {
         .uri = "/",
@@ -385,6 +385,8 @@ static httpd_uri_t default_handlers[] = {
     },
 #endif
 };
+
+int httpd_default_handlers_cnt = COUNT_OF(httpd_default_handlers);
 
 #ifdef HTTPD_SSL
 #define HTTPD_START httpd_ssl_start
@@ -492,8 +494,8 @@ httpd_t *httpd_new(int port)
     assert(self != NULL);
 
     list_t *list = &self->handlers;
-    for (int i=0; i<COUNT_OF(default_handlers); i++)
-        list = list_append(list, &default_handlers[i]);
+    for (int i=0; i<COUNT_OF(httpd_default_handlers); i++)
+        list = list_append(list, &httpd_default_handlers[i]);
 
 #ifdef HTTPD_SSL
     {
@@ -529,7 +531,10 @@ httpd_t *httpd_new(int port)
     if (port > 0)
         HTTPD_CONFIG.server_port = port;
     HTTPD_CONFIG.lru_purge_enable = true;
-    HTTPD_CONFIG.max_uri_handlers = MAX(HTTPD_MAX_URI_HANDLERS, list_count(&self->handlers));
+    HTTPD_CONFIG.max_uri_handlers = HTTPD_MAX_URI_HANDLERS + list_count(&self->handlers);
+#ifdef HTTPD_SSL
+    ESP_LOGI(TAG, "lifetime max handlers: %d", HTTPD_CONFIG.max_uri_handlers);
+#endif
     // this allows multiple httpd instances
     HTTPD_CONFIG.ctrl_port -= count++;
     ESP_LOGI(TAG, "ctrl_port=%d", HTTPD_CONFIG.ctrl_port);
@@ -575,10 +580,12 @@ list_t *httpd_register(httpd_t *self, httpd_uri_t *uri)
             HTTPD_CONFIG.max_uri_handlers += HTTPD_MAX_URI_HANDLERS;
             ESP_LOGW(TAG, "increasing max_uri_handlers to %d", HTTPD_CONFIG.max_uri_handlers);
 #ifdef HTTPD_SSL
-            assert(0 || "httpd restart breaks HTTPS server");
-#endif
+            ESP_LOGE(TAG, "restart breaks HTTPS server");
+            //assert(0 || "httpd restart breaks HTTPS server");
+#else
             stop_webserver(self);
             start_webserver(self);
+#endif
             break;
         }
     }

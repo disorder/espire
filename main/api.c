@@ -6,6 +6,8 @@
 #include "temp.h"
 #include "api.h"
 #include "heating.h"
+#include "relay.h"
+#include "driver/gpio.h"
 #include "ping.h"
 #include "httpd.h"
 #include "nv.h"
@@ -29,6 +31,8 @@
 static const char *TAG = "api";
 
 #include "metar.h"
+
+esp_err_t api_help(httpd_req_t *req);
 
 static esp_err_t api_module(httpd_req_t *req)
 {
@@ -157,8 +161,9 @@ static esp_err_t api_temp_zone(httpd_req_t *req)
 {
     char *buf = NULL;
     int buf_len;
-    if (!api_key_check(1, req, &buf, &buf_len))
-        goto CLEANUP;
+    int auth = 0;
+    if (api_key_check(1, req, &buf, &buf_len))
+        auth = 1;
 
     char name[member_size(heating_t, name)] = "";
     if (buf_len > 1) {
@@ -170,6 +175,9 @@ static esp_err_t api_temp_zone(httpd_req_t *req)
                 goto PRINT;
             }
 
+            if (!auth)
+                goto CLEANUP;
+
             char adc[3] = "";
             if (httpd_query_key_value(buf, "adc", (char *) adc, sizeof(adc)) == ESP_OK) {
                 temp_zone_adc(name, atoi(adc));
@@ -177,7 +185,7 @@ static esp_err_t api_temp_zone(httpd_req_t *req)
 
             char relay[3] = "";
             if (httpd_query_key_value(buf, "relay", (char *) relay, sizeof(relay)) == ESP_OK) {
-                temp_zone_relay(name, atoi(relay));
+                heating_relay(name, atoi(relay));
             }
 
             if (adc[0] || relay[0])
@@ -191,7 +199,15 @@ PRINT:
             continue;
         if (temp_zones[i].name[0] == '\0')
             continue;
-        http_printf(req, "%s=%d+%d\n", temp_zones[i].name, temp_zones[i].adc, temp_zones[i].relay);
+        http_printf(req, "temp_zone_adc=%s==%d\n", temp_zones[i].name, temp_zones[i].adc);
+    }
+
+    iter_t iter = heating_iter();
+    heating_t *data;
+    while ((iter = heating_next(iter, &data)) != NULL) {
+        http_printf(req, "heating_relay=%s=%d\n", data->name, data->relay);
+        http_printf(req, "val=%.1f\n", data->val);
+        http_printf(req, "set=%.1f\n", data->set);
     }
 
 CLEANUP:
@@ -234,6 +250,7 @@ static esp_err_t api_heating_temp_get(httpd_req_t *req)
             http_printf(req, "name=%s\n", data->name);
             http_printf(req, "val=%.1f\n", data->val);
             http_printf(req, "set=%.1f\n", data->set);
+            http_printf(req, "relay=%d\n", data->relay);
         }
     }
 
@@ -265,13 +282,13 @@ static esp_err_t api_heating_temp_set(httpd_req_t *req)
             char temp[3+1+5 +1];
             if (httpd_query_key_value(buf, "val", (char *) temp, sizeof(temp)) == ESP_OK) {
                 float tempf = strtof(temp, NULL);
-                heating_temp_val(name, tempf);
+                heating_temp_val(name, tempf, 1);
                 httpd_resp_set_status(req, "200 OK");
             }
 
             if (httpd_query_key_value(buf, "set", (char *) temp, sizeof(temp)) == ESP_OK) {
                 float setf = strtof(temp, NULL);
-                heating_temp_set(name, setf);
+                heating_temp_set(name, setf, 1);
                 httpd_resp_set_status(req, "200 OK");
             }
        }
@@ -540,6 +557,36 @@ esp_err_t api_ota(httpd_req_t *req)
 {
     char *reason = (req == NULL) ? "internal" : "external";
     ESP_LOGE(TAG, "ota: %s", reason);
+
+    int buf_len;
+    char *buf = NULL;
+    int authorized = api_key_check(0, req, &buf, &buf_len);
+
+    if (buf_len > 1) {
+        {//if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            char force[1+1];
+            if (httpd_query_key_value(buf, "force", (char *) force, sizeof(force)) == ESP_OK) {
+                int value = atoi(force);
+                // only allow force with key
+                if (value) {
+                    if (authorized)
+                        ota_force = value;
+                    else {
+                        httpd_resp_set_status(req, "401 Unauthorized");
+                        goto CLEANUP;
+                    }
+                }
+            } else {
+                httpd_resp_set_status(req, "400 Bad Request - force");
+                goto CLEANUP;
+            }
+        }
+    }
+
+CLEANUP:
+    if (buf != NULL)
+        free(buf);
+
     httpd_resp_send_chunk(req, NULL, 0);
     ota_main();
     return ESP_OK;
@@ -569,7 +616,6 @@ esp_err_t api_version(httpd_req_t *req)
 
 CLEANUP:
     httpd_resp_send_chunk(req, NULL, 0);
-    ota_main();
     return ESP_OK;
 }
 
@@ -897,10 +943,124 @@ static esp_err_t api_mac(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t api_time_set(httpd_req_t *req)
+{
+    int buf_len;
+    char *buf = NULL;
+    if (!api_key_check(1, req, &buf, &buf_len))
+        goto CLEANUP;
+
+    if (buf_len > 1) {
+        {//if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            char force[1+1];
+            int override = 0;
+            if (httpd_query_key_value(buf, "force", (char *) force, sizeof(force)) == ESP_OK) {
+                override = atoi(force);
+            }
+
+            if (!override && ntp_synced)
+                goto CLEANUP;
+
+            // YYYY-MM-DDThh:mm:ss without timezone
+            char dt[4+1+2+1+2 +1+ 2+1+2+1+2 +1];
+            if (httpd_query_key_value(buf, "dt", (char *) dt, sizeof(dt)) == ESP_OK) {
+                char *ret = set_time(dt);
+                if (ret != NULL)
+                    goto CLEANUP;
+            }
+            httpd_resp_set_status(req, "400 Bad Request - dt");
+        }
+    }
+
+CLEANUP:
+    if (buf != NULL)
+        free(buf);
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+
 static esp_err_t api_gpio(httpd_req_t *req)
 {
     check_report((void *) req, (int (*)(void *, const char *, ...)) &http_printf);
     httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_gpio_set(httpd_req_t *req)
+{
+    int buf_len;
+    char *buf = NULL;
+    if (!api_key_check(1, req, &buf, &buf_len))
+        goto CLEANUP;
+
+    if (buf_len > 1) {
+        {//if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            char pin[2+1];
+            int gpio = 0;
+            if (httpd_query_key_value(buf, "gpio", (char *) pin, sizeof(pin)) == ESP_OK) {
+                gpio = atoi(pin);
+            } else {
+                httpd_resp_set_status(req, "400 Bad Request - gpio");
+                goto CLEANUP;
+            }
+
+            char mode[4+1];
+            if (httpd_query_key_value(buf, "mode", (char *) mode, sizeof(mode)) == ESP_OK) {
+                ESP_LOGI(TAG, "gpio %d mode %s", gpio, mode);
+                if (strncmp(mode, "0", sizeof(mode)) == 0) {
+                    gpio_set_direction(gpio, GPIO_MODE_DISABLE);
+                } else if (strncmp(mode, "i", sizeof(mode)) == 0) {
+                    gpio_set_direction(gpio, GPIO_MODE_INPUT);
+                } else if (strncmp(mode, "o", sizeof(mode)) == 0) {
+                    gpio_set_direction(gpio, GPIO_MODE_OUTPUT);
+                } else if (strncmp(mode, "ood", sizeof(mode)) == 0) {
+                    gpio_set_direction(gpio, GPIO_MODE_OUTPUT_OD);
+                } else if (strncmp(mode, "iood", sizeof(mode)) == 0) {
+                    gpio_set_direction(gpio, GPIO_MODE_INPUT_OUTPUT_OD);
+                } else if (strncmp(mode, "io", sizeof(mode)) == 0) {
+                    gpio_set_direction(gpio, GPIO_MODE_INPUT_OUTPUT);
+                } else {
+                    httpd_resp_set_status(req, "400 Bad Request - mode");
+                    goto CLEANUP;
+                }
+            }/* else {
+                httpd_resp_set_status(req, "400 Bad Request - mode");
+                goto CLEANUP;
+            }*/
+
+            char pull[1+1];
+            if (httpd_query_key_value(buf, "pullup", (char *) pull, sizeof(pull)) == ESP_OK) {
+                ESP_LOGI(TAG, "gpio %d pullup %d", gpio, atoi(pull));
+                if (atoi(pull))
+                    gpio_pullup_en(gpio);
+                else
+                    gpio_pullup_dis(gpio);
+            }
+
+            if (httpd_query_key_value(buf, "pulldown", (char *) pull, sizeof(pin)) == ESP_OK) {
+                ESP_LOGI(TAG, "gpio %d pulldown %d", gpio, atoi(pull));
+                if (atoi(pull))
+                    gpio_pulldown_en(gpio);
+                else
+                    gpio_pulldown_dis(gpio);
+            }
+
+            char level[1+1];
+            if (httpd_query_key_value(buf, "level", (char *) level, sizeof(level)) == ESP_OK) {
+                relay_set_gpio(gpio, atoi(level));
+            }
+
+            if (httpd_query_key_value(buf, "level5", (char *) level, sizeof(level)) == ESP_OK) {
+                relay_set_gpio_5v(gpio, atoi(level));
+            }
+        }
+    }
+
+CLEANUP:
+    if (buf != NULL)
+        free(buf);
+    httpd_resp_send(req, NULL, 0);
     return ESP_OK;
 }
 
@@ -1161,6 +1321,11 @@ static esp_err_t api_auto_post(httpd_req_t *req)
 
 static httpd_uri_t api_uris[] = {
     {
+        .uri       = "/help",
+        .method    = HTTP_GET,
+        .handler   = api_help,
+    },
+    {
         .uri       = "/reboot",
         .method    = HTTP_GET,
         .handler   = api_reboot,
@@ -1262,6 +1427,11 @@ static httpd_uri_t api_uris[] = {
         .handler   = api_stats,
     },
     {
+        .uri       = "/time/set",
+        .method    = HTTP_GET,
+        .handler   = api_time_set,
+    },
+    {
         .uri       = "/oled",
         .method    = HTTP_GET,
         .handler   = api_oled,
@@ -1288,6 +1458,11 @@ static httpd_uri_t api_uris[] = {
         .handler   = api_nvdump,
     },
     {
+        .uri       = "/gpio/set",
+        .method    = HTTP_GET,
+        .handler   = api_gpio_set,
+    },
+    {
         .uri       = "/gpio",
         .method    = HTTP_GET,
         .handler   = api_gpio,
@@ -1303,6 +1478,23 @@ void api_init(httpd_t *httpd)
 {
     for (int i=0; i<COUNT_OF(api_uris); i++)
         httpd_register(httpd, &api_uris[i]);
+}
+
+esp_err_t api_help(httpd_req_t *req)
+{
+    for (int i=0; i<httpd_default_handlers_cnt; i++) {
+        http_printf(req, "%d %s\n", httpd_default_handlers[i].method, httpd_default_handlers[i].uri);
+    }
+    for (int i=0; i<COUNT_OF(api_uris); i++) {
+        http_printf(req, "%d %s\n", api_uris[i].method, api_uris[i].uri);
+    }
+    http_printf(req, "configuration:\n");
+    list_t *iter = &auto_singleton->handlers;
+    while ((iter = list_iter(iter)) != NULL) {
+        http_printf(req, "%s is_blob=%d\n", LIST(auto_handler_t, iter, name), LIST(auto_handler_t, iter, is_blob));
+    }
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
 }
 
 int api_key_check(int set_status, httpd_req_t *req, char **ptr_buf, int *ptr_buf_len)

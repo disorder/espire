@@ -15,31 +15,6 @@ int ping_timeout = 0;
 
 // based on https://docs.espressif.com/projects/esp-idf/en/latest/esp32/api-reference/protocols/icmp_echo.html
 
-static void on_ping_success(esp_ping_handle_t hdl, ping_t *ping)
-{
-    ping->connected = 1;
-    time(&ping->last);
-    ping->timeout = 0;
-    module_offline(ping->timeout);
-    return;
-}
-
-static void on_ping_timeout(esp_ping_handle_t hdl, ping_t *ping)
-{
-    ping->connected = 0;
-    ping->timeout += 1;
-    module_offline(ping->timeout);
-    return;
-}
-
-static void on_ping_end(esp_ping_handle_t hdl, ping_t *ping)
-{
-    ping->connected = -1;
-    ping->timeout = 0;
-    module_offline(0);
-    return;
-}
-
 #ifdef PING_TEST
 static void test_on_ping_success(esp_ping_handle_t hdl, ping_t *ping)
 {
@@ -81,6 +56,43 @@ static void test_on_ping_end(esp_ping_handle_t hdl, void *args)
 }
 #endif
 
+static void on_ping_success(esp_ping_handle_t hdl, ping_t *ping)
+{
+    ESP_LOGI(TAG, "success");
+#ifdef PING_TEST
+    test_on_ping_success(hdl, ping);
+#endif
+    ping->connected = 1;
+    time(&ping->last);
+    ping->timeout = 0;
+    module_offline(ping->timeout);
+    return;
+}
+
+static void on_ping_timeout(esp_ping_handle_t hdl, ping_t *ping)
+{
+    ESP_LOGI(TAG, "timeout");
+#ifdef PING_TEST
+    test_on_ping_timeout(hdl, ping);
+#endif
+    ping->connected = 0;
+    ping->timeout += 1;
+    module_offline(ping->timeout);
+    return;
+}
+
+static void on_ping_end(esp_ping_handle_t hdl, ping_t *ping)
+{
+    ESP_LOGI(TAG, "end");
+#ifdef PING_TEST
+    test_on_ping_end(hdl, ping);
+#endif
+    ping->connected = -1;
+    ping->timeout = 0;
+    module_offline(0);
+    return;
+}
+
 void ping_add(ping_t *ping, char *addr)
 {
     assert(ping != NULL);
@@ -115,6 +127,7 @@ void ping_add(ping_t *ping, char *addr)
     ping->cbs.cb_args = ping;
 
     esp_ping_new_session(&ping->ping_config, &ping->cbs, &ping->ping);
+    ESP_LOGW(TAG, "%s", addr);
     module_add(&ping->module);
 }
 

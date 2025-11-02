@@ -5,5 +5,9 @@ cmake_minimum_required(VERSION 3.5)
 set(EXTRA_COMPONENT_DIRS components)
 list(APPEND EXTRA_COMPONENT_DIRS $ENV{IDF_PATH}/examples/common_components/protocol_examples_common)
 
+# this or version.txt otherwise there is git-describe
+# esptool.py image_info --version 2 build/espire.bin
+#set(PROJECT_VER "1")
+# secure version is CONFIG_BOOTLOADER_APP_SECURE_VERSION
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(espire)

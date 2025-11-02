@@ -19,7 +19,7 @@ parser.add_argument('--bind', dest='bind', action='store', default='0.0.0.0',
 parser.add_argument('--ip', dest='ip', action='store', required=True,
                     help='IP address to send to')
 parser.add_argument('--type', dest='type', action='store', required=True,
-                    help='Message type: ?#!')
+                    help='Message type: *?#!')
 parser.add_argument('--zone', dest='zone', action='store', default='',
                     help='Zone name')
 parser.add_argument('--secret', dest='secret', action='store',
@@ -76,6 +76,7 @@ sock.sendto(data, (args.ip, args.port))
 def receive():
     renc, addr = sock.recvfrom(BUFSIZE)
     print(addr)
+    dec = cipher.decryptor()
     rdec = dec.update(renc) + dec.finalize()
     print('received ', rdec)
     val = struct.unpack('f', rdec[name_end:name_end+4])

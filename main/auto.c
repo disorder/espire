@@ -27,6 +27,8 @@ static auto_t singleton = {
     },
 };
 
+auto_t *auto_singleton = &singleton;
+
 static void wifi_ssid_apply(char *value)
 {
     if (strncmp(WIFI_SSID, value, sizeof(WIFI_SSID)) != 0) {
@@ -87,7 +89,7 @@ static void temp_zone_adc_handler(auto_handler_t *self, char *value)
     temp_zone_adc(name, gpio);
 }
 
-static void temp_zone_relay_handler(auto_handler_t *self, char *value)
+static void heating_relay_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
         return;
@@ -100,7 +102,7 @@ static void temp_zone_relay_handler(auto_handler_t *self, char *value)
     }
 
     int gpio = atoi(value);
-    temp_zone_relay(name, gpio);
+    heating_relay(name, gpio);
 }
 
 void generic_str_key_handler(auto_handler_t *self, char *value)
@@ -262,6 +264,14 @@ static void rm_handler(auto_handler_t *self, char *value)
     nv_remove(value);
 }
 
+static void pm_handler(auto_handler_t *self, char *value)
+{
+    if (value == NULL)
+        return;
+
+    esp.pm = atoi(value);
+}
+
 static void write_str_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
@@ -304,8 +314,8 @@ auto_handler_t default_handlers[] = {
         .handler = temp_zone_adc_handler,
     },
     {
-        .name = "temp_zone_relay",
-        .handler = temp_zone_relay_handler,
+        .name = "heating_relay",
+        .handler = heating_relay_handler,
     },
     {
         .name = "th.udp.key",
@@ -348,6 +358,10 @@ auto_handler_t default_handlers[] = {
     {
         .name = "loglevel",
         .handler = loglevel_handler,
+    },
+    {
+        .name = "pm",
+        .handler = pm_handler,
     },
 };
 
