@@ -208,7 +208,49 @@ PRINT:
         http_printf(req, "heating_relay=%s=%d\n", data->name, data->relay);
         http_printf(req, "val=%.1f\n", data->val);
         http_printf(req, "set=%.1f\n", data->set);
+        http_printf(req, "state=%d\n", data->state == HEATING_ON);
+        http_printf(req, "triggered=%d\n", data->triggered);
+        http_printf(req, "change=%d\n", data->change);
     }
+
+CLEANUP:
+    if (buf != NULL)
+        free(buf);
+    httpd_resp_send(req, NULL, 0);
+    return ESP_OK;
+}
+
+static esp_err_t api_heating_hc_get(httpd_req_t *req)
+{
+    char *buf = NULL;
+    int buf_len;
+    if (!api_key_check(1, req, &buf, &buf_len))
+        goto CLEANUP;
+
+    if (buf_len > 1) {
+        {//if (httpd_req_get_url_query_str(req, buf, buf_len) == ESP_OK) {
+            // at least "http://123.456.789.abc:12345/hc?value=X"
+            // more available by using autoconfiguration
+            char url[4+1+2 + 3+1+3+1+3+1+3 + 1+5 +1+ 2+1+5+1+1 +1];
+            if (httpd_query_key_value(buf, "url", (char *) url, sizeof(url)) == ESP_OK) {
+                if (!heating_hc_url_set(url)) {
+                    httpd_resp_set_status(req, "500 Failed - " HEATING_HC_URL_KEY);
+                    goto CLEANUP;
+                }
+            } else {
+                goto PRINT;
+            }
+        }
+    }
+
+PRINT:
+    /* can be read using nv, not useful here */
+    char *value = heating_hc_url_get();
+    if (value != NULL) {
+        http_printf(req, "%s=%s", HEATING_HC_URL_KEY, value);
+        free(value);
+    } else
+        httpd_resp_set_status(req, "404 Not Found - " HEATING_HC_URL_KEY);
 
 CLEANUP:
     if (buf != NULL)
@@ -1344,6 +1386,11 @@ static httpd_uri_t api_uris[] = {
         .uri       = "/hostname",
         .method    = HTTP_GET,
         .handler   = api_hostname,
+    },
+    {
+        .uri       = "/heating/hc",
+        .method    = HTTP_GET,
+        .handler   = api_heating_hc_get,
     },
     {
         .uri       = "/temp/zone",

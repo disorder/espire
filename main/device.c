@@ -495,7 +495,7 @@ void sleep_task(sleep_t *self)
 
             external_wake = 0;
             // bypass
-            if (!esp.pm) {
+            if (esp.pm) {
                 ESP_LOGI(TAG, "sleeping ~%ds", sleep_ms / 1000);
                 // wait for network log and it seems to help a bit with uart log
                 //_vTaskDelay(MS_TO_TICK(100));

@@ -26,6 +26,8 @@ extern char HEATING_UDP_KEY_B64[44];
 extern char HEATING_UDP_IV_B64[24];
 extern uint16_t HEATING_UDP_PORT;
 
+#define HEATING_HC_URL_KEY "hc.url"
+
 #define HTTPD_SSL
 #define API_KEY "test"
 //#define CONFIG_ESP_CONTROLLER_IP "127.0.0.1"

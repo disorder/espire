@@ -105,6 +105,14 @@ static void heating_relay_handler(auto_handler_t *self, char *value)
     heating_relay(name, gpio);
 }
 
+static void heating_hc_url_handler(auto_handler_t *self, char *value)
+{
+    if (value == NULL)
+        return;
+
+    heating_hc_url_set(value);
+}
+
 void generic_str_key_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
@@ -316,6 +324,10 @@ auto_handler_t default_handlers[] = {
     {
         .name = "heating_relay",
         .handler = heating_relay_handler,
+    },
+    {
+        .name = "heating_hc_url",
+        .handler = heating_hc_url_handler,
     },
     {
         .name = "th.udp.key",

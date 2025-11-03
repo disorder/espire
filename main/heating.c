@@ -17,6 +17,9 @@
 static const char *TAG = "heating";
 
 static list_t zones = {0};
+static char *heating_hc_url = NULL;
+static int hc_url_reload = 0;
+static int hc_status = 0;
 
 heating_t *heating_find(char *name, int create)
 {
@@ -51,6 +54,7 @@ heating_t *heating_find(char *name, int create)
         for (int i=0; i<COUNT_OF(data->vals); i++)
             data->vals[i] = NAN;
         data->relay = -1;
+        data->state = !HEATING_ON;
         char key[5+member_size(heating_t, name)] = "tset.";
         strncpy(key+5, data->name, strlen(data->name));
         size_t size = 0;
@@ -87,6 +91,12 @@ static void heating_action(heating_t *data)
     }
     */
 
+    // heating is not available
+    int state = !HEATING_ON;
+    if (!hc_status) {
+        goto ACTION;
+    }
+
     if (data->relay < 0) {
         ESP_LOGE(TAG, "no relay for '%s'", data->name);
         return;
@@ -94,13 +104,8 @@ static void heating_action(heating_t *data)
 
     if (data->val >= 45.0 || data->val <= 0.0) {
         // something's wrong with data, close
-#ifdef RELAY_3V3
-        relay_init_gpio(data->relay);
-        relay_set_gpio(data->relay, !HEATING_ON);
-#else
-        relay_set_gpio_5v(data->relay, !HEATING_ON);
-#endif
-        return;
+        state = !HEATING_ON;
+        goto ACTION;
     }
 
     float set = data->set;
@@ -114,18 +119,12 @@ static void heating_action(heating_t *data)
 #define HEATING_MIN_TIME_RUN 0
 #define HEATING_IMMEDIATE_DIFF_ON 0.1
 #define HEATING_IMMEDIATE_DIFF_OFF 0.1
-    int state = (set > data->val)? HEATING_ON : !HEATING_ON;
+    state = (set > data->val)? HEATING_ON : !HEATING_ON;
     // this can happen if sensor goes bad or is not connected
     if (isnanf(data->val))
         state = !HEATING_ON;
     if (data->state == state) {
-#ifdef RELAY_3V3
-        relay_init_gpio(data->relay);
-        relay_set_gpio(data->relay, state);
-#else
-        relay_set_gpio_5v(data->relay, state);
-#endif
-        return;
+        goto ACTION;
     }
 
     time_t now;
@@ -144,19 +143,20 @@ static void heating_action(heating_t *data)
             return;
     }
 
+    if (data->state != state) {
+        data->change = now;
+        data->triggered = 0;
+    }
+
+ACTION:
+    data->state = state;
+
 #ifdef RELAY_3V3
     relay_init_gpio(data->relay);
     relay_set_gpio(data->relay, state);
 #else
     relay_set_gpio_5v(data->relay, state);
 #endif
-    relay_set_gpio(data->relay, state);
-
-    if (data->state != state) {
-        data->state = state;
-        data->change = now;
-        data->triggered = 0;
-    }
 }
 
 static void th_send(int req, char *name, float val, float set);
@@ -220,6 +220,38 @@ heating_t *heating_temp_set(char *name, float set, int apply)
     } else
         ESP_LOGI(TAG, "ignoring temp set '%s'=%.1f", name, set);
     return data;
+}
+
+int heating_hc_url_set(char *url)
+{
+    if (url == NULL)
+        return 0;
+
+    ESP_LOGI(TAG, "saving API URL: %s", url);
+    esp_err_t res = nv_write_str(HEATING_HC_URL_KEY, url);
+    if (heating_hc_url != NULL)
+        hc_url_reload = 1;
+
+    if (res != ESP_OK)
+        ESP_LOGI(TAG, "writing failed '%s'=%s", HEATING_HC_URL_KEY, url);
+
+    return 1;
+}
+
+// needs to be freed
+char *heating_hc_url_get()
+{
+    char *url = NULL;
+    size_t size = 0;
+    esp_err_t res = nv_read_str(HEATING_HC_URL_KEY, &url, &size);
+    if (res != ESP_OK) {
+        if (url != NULL) {
+            free(url);
+            url = NULL;
+        }
+    }
+
+    return url;
 }
 
 // relay=-1 will only reset relay
@@ -531,12 +563,51 @@ static void thermostat_update(void *pvParameter)
     }
 }
 
+void heating_api_cb(http_request_t *req, int success)
+{
+    if (!success)
+        goto FAIL;
+    if (!req->client || esp_http_client_get_status_code(req->client) != 200) {
+        goto FAIL;
+    }
+
+    // it doesn't matter
+    ESP_LOGI(TAG, "EBUS sent");
+    goto CLEANUP;
+
+    if (esp_http_client_get_content_length(req->client) != req->bufsize) {
+        ESP_LOGW(TAG, "content size mismatch %lld != %d", esp_http_client_get_content_length(req->client), req->bufsize);
+        // this happens when we get disconnected
+        goto CLEANUP;
+    }
+
+    // seeing NULL and 0 size
+    //assert(req->buf != NULL);
+FAIL:
+    // TODO could have some data in the response or UDP updates?
+    // this means if API is down, all relays should be off
+    // we can't switch heating on/off so close everything
+    hc_status = 0;
+    iter_t iter = heating_iter();
+    heating_t *data;
+    while ((iter = heating_next(iter, &data)) != NULL)
+        heating_action(data);
+    ESP_LOGE(TAG, "EBUS failed: %s", req->url);
+CLEANUP:
+    ESP_LOGI(TAG, "cleanup");
+    if (req->buf != NULL)
+        free(req->buf);
+    free(req);
+}
+
+// with this period we can share turning heating on/off
 #define CHECK_PERIOD_S 10
 // reboot will prevent aging, timestamp can't be relied on
 #define MAX_AGE_S (OFFLINE_REBOOT-(2*CHECK_PERIOD_S))
 static void thermostat_aging(void *pvParameter)
 {
     while (1) {
+        int on_cnt = 0;
         TickType_t tick_now = xTaskGetTickCount();
         iter_t iter = heating_iter();
         heating_t *data;
@@ -562,7 +633,36 @@ static void thermostat_aging(void *pvParameter)
             } else {
                 //ESP_LOGI(TAG, "temperature for '%s' is ok %d", data->name, data->valid);
             }
+
+            if (data->state == HEATING_ON)
+                ++on_cnt;
         }
+
+        if (hc_url_reload) {
+            free(heating_hc_url);
+            heating_hc_url = NULL;
+            hc_url_reload = 0;
+        }
+
+        if (heating_hc_url == NULL)
+            heating_hc_url = heating_hc_url_get();
+
+        if (heating_hc_url == NULL) {
+            ESP_LOGE(TAG, "heating API URL is not set: %s", HEATING_HC_URL_KEY);
+        } else {
+            http_request_t *req = calloc(1, sizeof(http_request_t));
+            assert(req != NULL);
+
+            // TODO digest auth
+            // off/auto/day/night - 0/1 will let API decide
+            heating_hc_url[strlen(heating_hc_url)-1] = '0' + ((on_cnt)? 1 : 0);
+            req->url = heating_hc_url;
+            req->callback = heating_api_cb;
+            //req->pad = 1;
+            req->exclusive = 1;
+            https_get(req);
+        }
+
         _vTaskDelay(S_TO_TICK(CHECK_PERIOD_S));
     }
 }
