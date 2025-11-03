@@ -136,7 +136,7 @@ void senseair_s8_init()
         ESP_LOGI(TAG, "FW version: %04x", val);
     }
 
-    ESP_LOGI(TAG, "ID: %08X", senseair_s8_id());
+    ESP_LOGI(TAG, "ID: %08" PRIX32, senseair_s8_id());
 }
 
 int senseair_s8_u16(uint8_t *cmd, int len)

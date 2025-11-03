@@ -210,7 +210,8 @@ list_t *list_find(list_t *list, void *data)
 }
 
 // for use by opaque iterator (iterator is list)
-inline list_t *iter_next_list(list_t *iter, void **pdata)
+// inline = linker error
+list_t *iter_next_list(list_t *iter, void **pdata)
 {
     assert(iter != NULL);
     assert(pdata != NULL);
@@ -288,7 +289,7 @@ void xvTaskDelete(task_t *data)
     assert(data != NULL);
     assert(data->task != NULL);
 
-    ESP_LOGE(TAG, "-%s %x", data->name, data->task);
+    ESP_LOGE(TAG, "-%s %" PRIx32, data->name, (uint32_t) data->task);
     assert(list_remove(&tasks, item) != 0);
     TaskHandle_t task = data->task;
     free(data);
@@ -321,15 +322,15 @@ BaseType_t xxTaskCreate(    TaskFunction_t pvTaskCode,
                                  &data->task);
     // TODO seen this fail with owm after boot
     if (data->task == NULL) {
-        ESP_LOGE(TAG, "heap: %zu", esp_get_free_heap_size());
+        ESP_LOGE(TAG, "heap: %" PRIu32, esp_get_free_heap_size());
         multi_heap_info_t heap = {0};
         heap_caps_get_info(&heap, MALLOC_CAP_8BIT);
-        ESP_LOGE(TAG, "heap largest: %zu", heap.largest_free_block);
+        ESP_LOGE(TAG, "heap largest: %u", heap.largest_free_block);
     }
     assert(data->task != NULL);
     strncpy(data->name, pcName, sizeof(data->name)-1);
     list_prepend(&tasks, data);
-    ESP_LOGE(TAG, "+%s %x", data->name, data->task);
+    ESP_LOGE(TAG, "+%s %" PRIu32, data->name, (uint32_t) data->task);
     if (pxCreatedTask != NULL)
         *pxCreatedTask = data;
     return res;
@@ -400,7 +401,7 @@ int b64_decode(char *data, size_t len, char *dec, size_t declen)
 inline int init_sa(char *ip, int port, struct sockaddr_in *sa)
 {
     if (port < 0 || port >= 65536) {
-        ESP_LOGW(TAG, "invalid port: %s", port);
+        ESP_LOGW(TAG, "invalid port: %d", port);
         return 0;
     }
 

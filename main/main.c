@@ -185,7 +185,7 @@ void button_handler(button_t *b)
         }
         break;
     default:
-        ESP_LOGE(TAG, "unknown button %d", b->data);
+        ESP_LOGE(TAG, "unknown button %d", (button_enum_t) b->data);
     }
 }
 
@@ -268,7 +268,7 @@ device_t devices[] = {
 void wakeup_cb(int external_wake)
 {
     // TODO
-    ESP_LOGW(TAG, "heap %zu / %zu", esp_get_free_heap_size(), heap_first_t_free);
+    ESP_LOGW(TAG, "heap %" PRIu32 " / %" PRIu32, esp_get_free_heap_size(), heap_first_t_free);
 }
 
 // TODO

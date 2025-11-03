@@ -31,6 +31,7 @@
 #include "thermistor.h"
 
 #include <stdlib.h>
+#include <inttypes.h>
 #include "driver/gpio.h"
 #include "esp_adc/adc_cali_scheme.h"
 #include "adc_cali_schemes.h"
@@ -48,7 +49,7 @@ static const char* TAG = "drv_thr";
 static adc_cali_handle_t cali_unit1 = NULL;
 static adc_cali_handle_t cali_unit2 = NULL;
 static const adc_bitwidth_t width = SOC_ADC_RTC_MAX_BITWIDTH;
-static const adc_atten_t atten = ADC_ATTEN_DB_11;
+static const adc_atten_t atten = ADC_ATTEN_DB_12;
 static adc_cali_line_fitting_efuse_val_t cali_val;
 static adc_oneshot_unit_handle_t unit1 = NULL;
 static adc_oneshot_unit_handle_t unit2 = NULL;
@@ -154,7 +155,7 @@ bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_bitwidth_t bit
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
 
     if (!calibrated) {
-        ESP_LOGI(TAG, "calibration scheme version is %s (%d bit)", "Curve Fitting", bitwidth);
+        ESP_LOGI(TAG, "calibration scheme version is %s (%" PRIu32 " bit)", "Curve Fitting", bitwidth);
         adc_cali_curve_fitting_config_t cali_config = {
             .unit_id = unit,
             .atten = atten,
@@ -182,7 +183,7 @@ if (!calibrated) {
         if (cali_val != ADC_CALI_LINE_FITTING_EFUSE_VAL_DEFAULT_VREF) {
             vref = read_efuse_vref();
         }
-        ESP_LOGI(TAG, "Vref: %dmV", vref);
+        ESP_LOGI(TAG, "Vref: %" PRIu32 "mV", vref);
 
         if (ret == ESP_OK) {
             calibrated = true;
@@ -386,7 +387,7 @@ uint32_t thermistor_read_vout(thermistor_handle_t* th)
         adc_reading /= samples;
     }
 
-    ESP_LOGI(TAG, "histogram >=%d, %d samples, %d", 10*(NO_OF_SAMPLES/64), samples, adc_reading);
+    ESP_LOGI(TAG, "histogram >=%d, %d samples, %" PRIu32, 10*(NO_OF_SAMPLES/64), samples, adc_reading);
 
     int voltage;
     ESP_ERROR_CHECK(adc_cali_raw_to_voltage(cali, adc_reading, &voltage));

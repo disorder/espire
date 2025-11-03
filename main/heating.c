@@ -409,7 +409,7 @@ static void thermostat_udp(void *pvParameter)
         memcpy(iv, UDP_IV, sizeof(iv));
         aes_cbc(0, &udp_aes, iv, n, buf, sizeof(dec), dec);
         if (memcmp(dec+HEATING_DATA_SIZE, UDP_SECRET, strlen(UDP_SECRET)+1) != 0) {
-            ESP_LOGI(TAG, "invalid datagram from 0x%08x", claddr.sin_addr);
+            ESP_LOGI(TAG, "invalid datagram from 0x%08" PRIx32, claddr.sin_addr.s_addr);
             continue;
         }
 #endif
@@ -513,7 +513,7 @@ static void thermostat_udp(void *pvParameter)
                 }
             }
         } else {
-            ESP_LOGW(TAG, "received unknown request type '%c' from 0x%08x", dec[0], claddr.sin_addr);
+            ESP_LOGW(TAG, "received unknown request type '%c' from 0x%08" PRIx32, dec[0], claddr.sin_addr.s_addr);
         }
     }
 }

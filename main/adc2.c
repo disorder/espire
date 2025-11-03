@@ -78,7 +78,7 @@ inline static void WIFI_OWNER_REMOVE(TaskHandle_t task)
         return;
     }
 
-    ESP_LOGE(TAG, "wifi owner not found: %x", task);
+    ESP_LOGE(TAG, "wifi owner not found: %" PRIx32, (uint32_t) task);
     assert(item != NULL);
 }
 
@@ -133,7 +133,7 @@ inline void ADC2_FREE()
 {
     _MUTEX_ENTER_CRITICAL();
     adc2_use = 0;
-    ESP_LOGW(TAG, "freed", adc2_use);
+    ESP_LOGW(TAG, "freed");
     _MUTEX_EXIT_CRITICAL();
 }
 
@@ -161,14 +161,14 @@ inline int ADC2_WAIT(adc2_mode_t value, int add, TickType_t force_tick, int nonb
                 _MUTEX_EXIT_CRITICAL();
 // TODO causes issue in reconnect?
 //                 while (!wifi_connected) {
-//                     ESP_LOGW(TAG, "waiting for connect", value);
+//                     ESP_LOGW(TAG, "waiting for connect (%d=wifi)", value);
 //                     _vTaskDelay(MS_TO_TICK(500));
 //                 }
                 break;
             default:
                 _MUTEX_EXIT_CRITICAL();
                 while (wifi_connected) {
-                    ESP_LOGI(TAG, "waiting for disconnect", value);
+                    ESP_LOGI(TAG, "waiting for disconnect (%d)", value);
                     _vTaskDelay(MS_TO_TICK(10));
                 }
             }
@@ -232,13 +232,13 @@ inline int ADC2_WAIT(adc2_mode_t value, int add, TickType_t force_tick, int nonb
                     _vTaskDelay(MS_TO_TICK(500));
                 }
                 //while (add && !wifi_connected) {
-                //    ESP_LOGW(TAG, "waiting for connect", value);
+                //    ESP_LOGW(TAG, "waiting for connect (%d=wifi)", value);
                 //    _vTaskDelay(MS_TO_TICK(500));
                 //}
             } else {
                 _wifi_stop_sta(0);
                 while (wifi_connected) {
-                    ESP_LOGI(TAG, "waiting for disconnect", value);
+                    ESP_LOGI(TAG, "waiting for disconnect (%d)", value);
                     _vTaskDelay(MS_TO_TICK(10));
                 }
             }

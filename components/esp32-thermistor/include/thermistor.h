@@ -54,6 +54,7 @@
 extern "C" {
 #endif
 
+#include <time.h>
 #include "hal/adc_types.h"
 #include "esp_adc/adc_oneshot.h"
 #include "freertos/portmacro.h"

@@ -1,7 +1,6 @@
 #ifndef __HEAP_H__
 #define __HEAP_H__
 
-#include "freertos/FreeRTOS.h"
 #include "util.h"
 #include <stdint.h>
 

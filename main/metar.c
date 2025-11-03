@@ -660,7 +660,7 @@ char *metar_decode(metar_t *self, char *buf, size_t len, metar_t *parent)
     self->report_time[0] = '\0';
     self->decoded[0] = '\0';
     if (self->shmu.last) {
-        metar_decoded_add(self, " %.1f %.1f%%", self->shmu.ta_2m, roundf(self->shmu.rh), roundf(self->shmu.pr_1h));
+        metar_decoded_add(self, " %.1f %.1f%%", self->shmu.ta_2m, roundf(self->shmu.rh));
         float pr_1h = round(self->shmu.pr_1h);
         if (pr_1h > 0)
             metar_decoded_add(self, " %.0fmm", pr_1h);
@@ -806,7 +806,7 @@ char *metar_decode(metar_t *self, char *buf, size_t len, metar_t *parent)
                                 ESP_LOGW(TAG, "%s Wind: %.0f km/h gust %.0f %s %d", self->icao, roundf(speed), roundf(gust), wind_dirs[dire], dir);
                                 self->wind_from = wind_dirs[dire];
                             } else
-                                ESP_LOGW(TAG, "%s Wind: var %.0f km/h gust %.0f (%d)", self->icao, roundf(speed), roundf(gust));
+                                ESP_LOGW(TAG, "%s Wind: var %.0f km/h gust %.0f (%d)", self->icao, roundf(speed), roundf(gust), dir);
                             if (next[1+3] == 'V') {
                                 // hacky but we can depend it goes after wind
                                 // ' xxxVxxx' => ' xxx\0xxx\0'
@@ -1059,7 +1059,7 @@ void metar_task(metar_t *self)
             time_t t = time(NULL);
             struct tm tmp;
             gmtime_r(&t, &tmp);
-            snprintf(date, sizeof("DD.MM.YYYY:ZZ"), "%02d.%02d.%04d:%02d",
+            snprintf(date, sizeof("DD.MM.YYYY:ZZ"), "%02u.%02u.%04u:%02u",
                      tmp.tm_mday, tmp.tm_mon+1, tmp.tm_year+1900, tmp.tm_hour);
             ESP_LOGD(TAG, "shmu: %s", shmu_url_decode);
             req_shmu->url = shmu_url_decode;

@@ -63,6 +63,14 @@ void hostname_set(char *hostname);
 size_t format_time(time_t time, char *strftime_buf, int size, char *fmt);
 char *set_time(char *dt);
 
+#include "freertos/FreeRTOSConfig.h"
+#include "freertos/portmacro.h"
+// something is broken (upgrade from 5.0 to 5.5)
+/* #ifndef portYIELD_CORE */
+/* #if ( configNUMBER_OF_CORES > 1 ) */
+/*     #define portYIELD_CORE( xCoreID )     vPortYieldOtherCore( xCoreID ) */
+/* #endif /\* configNUMBER_OF_CORES > 1 *\/ */
+/* #endif */
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 

@@ -23,10 +23,10 @@ int owm_parse(char *out, int outsize, char *buf, int len)
             buf[len-1] = '\0';
             ESP_LOGE(TAG, "Error before: %s\n", error_ptr);
             //ESP_LOGE(TAG, "Full: %s\n", buf);
-            ESP_LOGE(TAG, "heap: %zu", esp_get_free_heap_size());
+            ESP_LOGE(TAG, "heap: %" PRIu32, esp_get_free_heap_size());
             multi_heap_info_t heap = {0};
             heap_caps_get_info(&heap, MALLOC_CAP_8BIT);
-            ESP_LOGE(TAG, "heap largest: %zu", heap.largest_free_block);
+            ESP_LOGE(TAG, "heap largest: %u", heap.largest_free_block);
         }
         return 0;
     }

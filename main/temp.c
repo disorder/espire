@@ -87,7 +87,7 @@ static void thermistor_read(thermistor_handle_t *th)
 
     // seeing -19 and 49 on disconnected pins
     if (th->celsius < 45.0 && th->celsius > 0.0) {
-        ESP_LOGI(TAG, "Voltage: %d mV\tTemperature: %2.1f C\tResistance: %.0f ohm\tADC%d CH %d GPIO %d",
+        ESP_LOGI(TAG, "Voltage: %" PRIu32 " mV\tTemperature: %2.1f C\tResistance: %.0f ohm\tADC%d CH %d GPIO %d",
                  th->vout, th->celsius, th->t_resistance, th->adc_unit == ADC_UNIT_1? 1 : 2, th->channel, adc_channel_to_gpio(th->adc_unit, th->channel));
     } else {
         ESP_LOGI(TAG, "GPIO %d seems to be faulty value: %.1f", adc_channel_to_gpio(th->adc_unit, th->channel), th->celsius);

@@ -38,11 +38,11 @@ void heap_task(void *pvParameter)
         //if (now >= last + S_TO_TICK(HEAP_PERIOD_INFO_S)) {
         if (now >= last + HEAP_PERIOD_INFO_S) {
             last = now;
-            ESP_LOGI(TAG, "%d/%d free, diff %d to %.1f%% (%.2f days remaining)", free, heap_first_free, free-last_free, 100.0 - ((double)free/(double)heap_first_free), estimate/(24*60));
+            ESP_LOGI(TAG, "%" PRIu32 "/%" PRIu32 " free, diff %" PRIu32 " to %.1f%% (%.2f days remaining)", free, heap_first_free, free-last_free, 100.0 - ((double)free/(double)heap_first_free), estimate/(24*60));
         }
 
         if (last_free > free && last_free - free > HEAP_WARN_DECREASE_B)
-            ESP_LOGW(TAG, "%d/%d: %d decrease in %ds (%.0fm)", free, heap_first_free, last_free-free, HEAP_PERIOD_S, estimate);
+            ESP_LOGW(TAG, "%" PRIu32 "/%" PRIu32 ": %" PRIu32 " decrease in %ds (%.0fm)", free, heap_first_free, last_free-free, HEAP_PERIOD_S, estimate);
 
         if (HEAP_REBOOT_B >= 0 && free < HEAP_REBOOT_B) {
             if (reboot_cb == NULL || reboot_cb(free, heap_first_free)) {
@@ -78,6 +78,6 @@ void heap_init(int (*handler)(uint32_t free, uint32_t first_free))
     reboot_cb = handler;
     heap_first_free = esp_get_free_heap_size();
     //first = xTaskGetTickCount();
-    ESP_LOGI(TAG, "heap_init: %d free", heap_first_free);
+    ESP_LOGI(TAG, "heap_init: %" PRIu32 " free", heap_first_free);
     xxTaskCreate(heap_task, "heap_task", 3*1024, NULL, 5, NULL);
 }

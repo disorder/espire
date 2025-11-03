@@ -157,7 +157,7 @@ static void oled_update_task(void *pvParameter)
 
 static int lowmem_reboot(uint32_t free, uint32_t first_free)
 {
-    ESP_LOGE(TAG, "heap_reboot(%d, %d)", free, first_free);
+    ESP_LOGE(TAG, "heap_reboot(%" PRIu32 ", %" PRIu32 ")", free, first_free);
     nvs_flash_deinit();
     // proceed
     return 1;
@@ -335,7 +335,7 @@ void device_init(device_t *dev)
     nv_init();
 
     // start early so HTTPS has enough memory to start
-    ESP_LOGE(TAG, "free heap %d", esp_get_free_heap_size());
+    ESP_LOGE(TAG, "free heap %" PRIu32, esp_get_free_heap_size());
     httpd_t *httpd = httpd_new(0);
     httpd_run(httpd, 1);
 
@@ -352,7 +352,7 @@ void device_init(device_t *dev)
     // possible unique identifier
     char smac[13+5];
     read_mac((char *)&smac, 1);
-    ESP_LOGI(TAG, "MAC: %s", &smac);
+    ESP_LOGI(TAG, "MAC: %s", (char *) &smac);
     //read_mac(NULL);
 
     // this is useless now - relay has 5V pins + initialized by heating
@@ -454,9 +454,9 @@ void sleep_task(sleep_t *self)
                     }
                 }
                 if (!found)
-                    ESP_LOGW(TAG, "wifi owner %x (%llds) does not exist", LIST(wifi_owner_t, item, task), now - LIST(wifi_owner_t, item, time));
+                    ESP_LOGW(TAG, "wifi owner %x (%llds) does not exist", (size_t) LIST(wifi_owner_t, item, task), now - LIST(wifi_owner_t, item, time));
                 else
-                    ESP_LOGW(TAG, "wifi owner %x (%llds)", LIST(wifi_owner_t, item, task), now - LIST(wifi_owner_t, item, time));
+                    ESP_LOGW(TAG, "wifi owner %x (%llds)", (size_t) LIST(wifi_owner_t, item, task), now - LIST(wifi_owner_t, item, time));
             }
         }
         //if ((!esp.dev->controller || ntp_synced) && now.tv_sec - esp.activity >= 60 && wifi_count == 0) {
@@ -607,6 +607,8 @@ void sleep_run(sleep_t *self, int run)
 }
 
 // requires CONFIG_PM_ENABLE (and tickless)
+// 5.1+
+//static esp_pm_config_t pm = {
 static esp_pm_config_esp32_t pm = {
     // TODO will this ever be used without manual locking?
     .max_freq_mhz = 160,

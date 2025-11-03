@@ -480,7 +480,7 @@ static void config_task_cb(http_request_t *req, int success)
 
     // this will be NULL if auth is set up but server doesn't do auth
     ESP_LOGD(TAG, "config data: %s", (req->buf == NULL)? "(null)" : req->buf);
-    ESP_LOGI(TAG, "config data: 0x%x", req->buf);
+    ESP_LOGI(TAG, "config data: 0x%x", (ssize_t) req->buf);
 
     auto_t *self = req->data;
     assert(self != NULL);

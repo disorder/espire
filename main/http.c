@@ -78,7 +78,7 @@ esp_err_t _http_event_handler(esp_http_client_event_t *evt)
                     }
                 } else if (EVT_BUFDYN > 0 && evt->data_len > EVT_BUFDYN-EVT_BUFSIZE) {
                     EVT_BUFDYN += (evt->data_len > 1024)? evt->data_len : 1024;
-                    ESP_LOGD(TAG, "Growing to %d (%d)", EVT_BUFDYN);
+                    ESP_LOGD(TAG, "Growing to %d", EVT_BUFDYN);
                     char *new = realloc(EVT_BUF, EVT_BUFDYN+EVT_PAD);
                     if (new == NULL) {
                         ESP_LOGE(TAG, "Failed to allocate memory for output buffer");

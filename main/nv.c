@@ -292,7 +292,7 @@ void nv_dump(char *label, char *namespace, int values)
             ESP_ERROR_CHECK(res = nvs_get_ ## FN(h, INFO.key, & value_ ## FN)); \
             nvs_close(h);                                               \
             if (log)                                                    \
-                ESP_LOGW(TAG, "%d", value_ ## FN);                       \
+                ESP_LOGW(TAG, "%" PRI ## FN, value_ ## FN);                       \
         }
         switch (info.type) {
         case NVS_TYPE_U8:
