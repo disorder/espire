@@ -91,15 +91,17 @@ static void heating_action(heating_t *data)
     }
     */
 
+    if (data->relay < 0) {
+        // as a side effect action can be triggered on clients, suppress error
+        if (esp.dev->controller)
+            ESP_LOGE(TAG, "no relay for '%s'", data->name);
+        return;
+    }
+
     // heating is not available
     int state = !HEATING_ON;
     if (!hc_status) {
         goto ACTION;
-    }
-
-    if (data->relay < 0) {
-        ESP_LOGE(TAG, "no relay for '%s'", data->name);
-        return;
     }
 
     if (data->val >= 45.0 || data->val <= 0.0) {
@@ -149,6 +151,9 @@ static void heating_action(heating_t *data)
     }
 
 ACTION:
+    if (data->relay < 0)
+        return;
+
     data->state = state;
 
 #ifdef RELAY_3V3

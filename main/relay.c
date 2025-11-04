@@ -45,6 +45,7 @@ void relay_set_gpio(int gpio, int state)
 
 void relay_set_gpio_5v(int gpio, int state)
 {
+    ESP_LOGI(TAG, "Setting 5V GPIO %d to %d", gpio, state);
     // for this relay 3.3 high is not enough
     if (state) {
         gpio_set_level(gpio, state);
