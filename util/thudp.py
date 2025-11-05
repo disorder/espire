@@ -37,18 +37,23 @@ class ThUDP:
         padded = padder.update(msg) + padder.finalize()
         enc = self.cipher.encryptor()
         data = enc.update(padded) + enc.finalize()
-        self.BUFSIZE = len(data)
+        #self.BUFSIZE = len(data)
         return data, padded
 
     def bind(self, ip, port):
-        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
         self.sock.bind((ip, port))
+
+    def broadcast(self):
+        self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
 
     def send(self, ip, port, data):
         self.sock.sendto(data, (ip, port))
 
-    def receive(self):
-        renc, addr = self.sock.recvfrom(self.BUFSIZE)
+    def receive(self, validate=True):
+        BUFSIZE = self.data_end + len(self.secret)
+        BUFSIZE = ((BUFSIZE//32) + 1) * 32
+        renc, addr = self.sock.recvfrom(BUFSIZE)
         print(addr)
         dec = self.cipher.decryptor()
         rdec = dec.update(renc) + dec.finalize()
@@ -57,8 +62,9 @@ class ThUDP:
         set = struct.unpack('f', rdec[self.name_end+4:self.name_end+4+4])
         cmd = chr(rdec[0])
         zone = rdec[1:self.name_end].split(b'\0')[0]
-        # TODO compare secret
         secret = rdec[self.data_end:].split(b'\0')[0]
+        if validate and self.secret != secret:
+            raise ValueError('invalid secret')
         print(cmd, zone, val, set, secret)
         return cmd, zone, val, set, secret
 
@@ -84,6 +90,16 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--ip", dest="ip", action="store", required=True, help="IP address to send to"
+    )
+    parser.add_argument(
+        "--broadcast", dest="broadcast", action='store_true', default=False,
+    )
+    parser.add_argument(
+        "--insecure",
+        dest="insecure",
+        action="store_true",
+        default=False,
+        help="Do not validate secret",
     )
     parser.add_argument(
         "--type", dest="type", action="store", required=True, help="Message type: *?#!"
@@ -143,12 +159,14 @@ if __name__ == "__main__":
     print('cleartext', padded)
     print('encrypted', data)
     th.bind(args.bind, args.port)
+    if args.broadcast:
+        th.broadcast()
 
     th.send(args.ip, args.port, data)
 
     # wait for response
     if args.type == '?':
-        th.receive()
+        th.receive(validate=not args.insecure)
     elif args.type == '*':
         while True:
-            th.receive()
+            th.receive(validate=not args.insecure)
