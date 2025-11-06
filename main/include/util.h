@@ -109,6 +109,10 @@ void wall_clock_wait(int s, TickType_t wait);
 void wall_clock_wait_until_ms(uint32_t ms, TickType_t wait);
 void wall_clock_wait_until(struct timeval tv_end, TickType_t wait);
 
+extern struct sockaddr_in GRAPHITE_SA;
+int graphite_init(char *host, int port);
+int graphite_udp(char *prefix, char *metric, char *tag, float val, int now, time_t ts);
+
 #define _vTaskDelay(x) vTaskDelay(x)
 #define __vTaskDelay(x) {                                                \
         vTaskDelay(x);                                                  \

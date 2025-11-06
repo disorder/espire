@@ -335,8 +335,8 @@ static int i2c_test(int host, int addr)
 
 static void i2c_init(int host)
 {
-    gpio_set_pull_mode(21, GPIO_PULLUP_ONLY);
-    gpio_set_pull_mode(22, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(OLED_PIN_NUM_SDA, GPIO_PULLUP_ONLY);
+    gpio_set_pull_mode(OLED_PIN_NUM_SCL, GPIO_PULLUP_ONLY);
     if (gpio_owner(OLED_PIN_NUM_SDA) == OLED)
         check_gpio_clear(OLED_PIN_NUM_SDA);
     if (gpio_owner(OLED_PIN_NUM_SCL) == OLED)

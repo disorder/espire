@@ -47,7 +47,7 @@ while True:
             del rest[ip]
 
         if (args.tee_ip):
-            if data[-1] != b'\n':
+            if data and data[-1] != b'\n':
                 last = data.rfind(b'\n')
                 if last >= 0:
                     rest[ip] = data[last+1:]

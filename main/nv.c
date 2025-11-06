@@ -87,7 +87,10 @@ esp_err_t nv_read_str(char *key, char **value, size_t *len)
         data[*len] = '\0';
         *value = data;
     }
-    assert(data != NULL);
+    // seeing ESP_OK with NULL
+    //assert(data != NULL);
+    if (data == NULL)
+        return !ESP_OK;
     ESP_LOGI(TAG, "%s namespace %s read %s(%d) %s", NVS_LABEL, NVS_NAMESPACE, "str", *len, key);
     return nvs_get_str(handle, key, data, len);
 }

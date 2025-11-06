@@ -6,6 +6,8 @@
 #include "device.h"
 #include "ntp.h"
 #include "util.h"
+#include "wifi.h"
+#include "nv.h"
 
 #include <sys/time.h>
 #include <time.h>
@@ -479,4 +481,89 @@ void wall_clock_wait_until(struct timeval tv_end, TickType_t wait)
 
         _vTaskDelay(wait);
     }
+}
+
+struct sockaddr_in GRAPHITE_SA = {0};
+static int g_sock_udp = -1;
+
+int graphite_init(char *host, int port)
+{
+    int ret = 0;
+    uint16_t nv;
+
+    if (port == 0) {
+        port = GRAPHITE_UDP_PORT_DEFAULT;
+        if (nv_read_u16("graphite.port", &nv) == ESP_OK)
+            if (port != nv) {
+                port = nv;
+                ret = 1;
+            }
+    }
+    GRAPHITE_SA.sin_port = htons(port);
+
+    if (host == NULL) {
+        size_t size;
+        if (nv_read_str("graphite.ip", &host, &size) != ESP_OK) {
+            ret = init_sa(GRAPHITE_IP_DEFAULT, port, &GRAPHITE_SA);
+        } else {
+            ret = init_sa(host, port, &GRAPHITE_SA);
+            free(host);
+            host = NULL;
+        }
+    } else {
+        ret = init_sa(host, port, &GRAPHITE_SA);
+    }
+
+    if (ret != 0 && g_sock_udp != -1) {
+        close(g_sock_udp);
+        g_sock_udp = -1;
+        xSemaphoreGive(esp.sockets);
+    }
+    return ret;
+}
+
+int graphite_udp(char *prefix, char *metric, char *tag, float val, int now, time_t ts)
+{
+    int ret = 0;
+    //WIFI_ADD(xTaskGetCurrentTaskHandle());
+
+    if (g_sock_udp == -1) {
+        graphite_init(NULL, 0);
+        xSemaphoreTake(esp.sockets, portMAX_DELAY);
+        if ((g_sock_udp = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
+            ESP_LOGE(TAG, "socket: %s", strerror(errno));
+            xSemaphoreGive(esp.sockets);
+            ret = 1;
+            goto CLEANUP;
+        }
+    }
+
+    char buf[64];
+    int len;
+    if (!now && (ntp_synced || api_synced)) {
+        time_t now = ts;
+        if (!now)
+            time(&now);
+        len = snprintf(buf, sizeof(buf), "%s%s;tag1=%s %.2f %jd", prefix, metric, tag, val, now);
+    } else
+        len = snprintf(buf, sizeof(buf), "%s%s;tag1=%s %.2f", prefix, metric, tag, val);
+
+    if (len < 0) {
+        ESP_LOGE(TAG, "failed to format graphite data: %s%s, %s, %.2f, %d, %jd", prefix, metric, tag, val, now, ts);
+        ret = 2;
+        goto CLEANUP;
+    }
+
+    ESP_LOGW(TAG, "%s", buf);
+    ssize_t s = sendto(g_sock_udp, &buf, len,
+                       MSG_DONTWAIT, (struct sockaddr *) &GRAPHITE_SA, sizeof(GRAPHITE_SA));
+    if (s == -1) {
+        ESP_LOGE(TAG, "graphite errno %s", strerror(errno));
+        ret = 3;
+        goto CLEANUP;
+    }
+
+CLEANUP:
+    //WIFI_DEL(xTaskGetCurrentTaskHandle());
+    return ret;
 }

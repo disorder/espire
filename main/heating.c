@@ -637,6 +637,11 @@ static void thermostat_aging(void *pvParameter)
                 */
             } else {
                 //ESP_LOGI(TAG, "temperature for '%s' is ok %d", data->name, data->valid);
+                // TODO send from here?
+                graphite_udp("zone.tval.", data->name, "espire", data->val, 1, 0);
+                graphite_udp("zone.tset.", data->name, "espire", data->set, 1, 0);
+                if (data->relay != -1)
+                    graphite_udp("relay.", data->name, "espire", data->state == HEATING_ON, 1, 0);
             }
 
             if (data->state == HEATING_ON)

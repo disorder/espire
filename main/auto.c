@@ -164,6 +164,45 @@ inline void controller_ip_handler(auto_handler_t *self, char *value)
     nv_write_str("controller_ip", value);
 }
 
+static void graphite_ip_handler(auto_handler_t *self, char *value)
+{
+    char *nv = NULL;
+    size_t size;
+    if (nv_read_str("graphite.ip", &nv, &size) == ESP_OK) {
+        int cmp = strcmp(nv, value);
+        free(nv);
+        if (cmp == 0)
+            return;
+    }
+
+    assert(value != NULL);
+    nv_write_str("graphite.ip", value);
+
+    if (!graphite_init(value, 0)) {
+        ESP_LOGE(TAG, "failed to set graphite address: %s", value);
+        return;
+    }
+}
+
+static void graphite_port_handler(auto_handler_t *self, char *value)
+{
+    int port = atoi(value);
+    if (port < 0 || port >= 65536) {
+        ESP_LOGW(TAG, "invalid port: %d", port);
+        return;
+    }
+
+    uint16_t nv;
+    if (nv_read_u16("graphite.port", &nv) == ESP_OK && nv == port)
+        return;
+
+    nv_write_u16("graphite.port", port);
+    if (!graphite_init(NULL, port)) {
+        ESP_LOGE(TAG, "failed to set graphite port: %s", value);
+        return;
+    }
+}
+
 inline void hostname_handler(auto_handler_t *self, char *value)
 {
     hostname_apply(value);
@@ -312,6 +351,14 @@ auto_handler_t default_handlers[] = {
     {
         .name = "controller_ip",
         .handler = controller_ip_handler,
+    },
+    {
+        .name = "graphite_ip",
+        .handler = graphite_ip_handler,
+    },
+    {
+        .name = "graphite_port",
+        .handler = graphite_port_handler,
     },
     {
         .name = "hostname",

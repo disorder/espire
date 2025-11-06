@@ -89,8 +89,6 @@ static void print_char_val_type(adc_cali_line_fitting_efuse_val_t val_type)
  */
 static void check_efuse(void)
 {
-    adc_cali_scheme_line_fitting_check_efuse(&cali_val);
-
     // Check if TP is burned into eFuse
     if (adc_cali_scheme_line_fitting_check_efuse(&cali_val) == ESP_OK) {
         ESP_LOGI(TAG, "eFuse Two Point: Supported");
@@ -155,7 +153,7 @@ bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_bitwidth_t bit
 #if ADC_CALI_SCHEME_CURVE_FITTING_SUPPORTED
 
     if (!calibrated) {
-        ESP_LOGI(TAG, "calibration scheme version is %s (%" PRIu32 " bit)", "Curve Fitting", bitwidth);
+        ESP_LOGI(TAG, "calibration scheme version is %s (% %d bit)", "Curve Fitting", bitwidth);
         adc_cali_curve_fitting_config_t cali_config = {
             .unit_id = unit,
             .atten = atten,
@@ -169,8 +167,8 @@ bool adc_calibration_init(adc_unit_t unit, adc_atten_t atten, adc_bitwidth_t bit
 
 #elif ADC_CALI_SCHEME_LINE_FITTING_SUPPORTED
 
-if (!calibrated) {
-    ESP_LOGI(TAG, "calibration scheme version is %s (%d bit)", "Line Fitting", bitwidth);
+    if (!calibrated) {
+        ESP_LOGI(TAG, "calibration scheme version is %s (%d bit)", "Line Fitting", bitwidth);
         adc_cali_line_fitting_config_t cali_config = {
             .unit_id = unit,
             .atten = atten,

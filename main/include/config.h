@@ -177,6 +177,17 @@ extern char WIFI_PASSWORD[64];
 #define NTP_SERVER2 CONFIG_ESP_NTP_SERVER2
 #define NTP_TZ CONFIG_ESP_TZ
 
+#ifndef CONFIG_ESP_GRAPHITE_UDP_PORT
+#define GRAPHITE_UDP_PORT_DEFAULT 2003
+#else
+#define GRAPHITE_UDP_PORT_DEFAULT CONFIG_ESP_GRAPHITE_UDP_PORT
+#endif
+#ifndef CONFIG_ESP_GRAPHITE_IP
+#define GRAPHITE_IP_DEFAULT "graphite"
+#else
+#define GRAPHITE_IP_DEFAULT CONFIG_ESP_GRAPHITE_IP
+#endif
+
 // example for wifi connect/disconnect handler, not required
 //#define CONFIG_EXAMPLE_CONNECT_WIFI
 
