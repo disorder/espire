@@ -11,7 +11,16 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 
 
+def AES_PADDED_SIZE(len):
+    return 16 if (len < 16) else (((len-1) // 16 + 1) * 16)
+def HEATING_DGRAM_SIZE(size, secret):
+    return AES_PADDED_SIZE(size + len(secret)+1)
+
+
 class ThUDP:
+    # for encrypted (padded)
+    # HEATING_DATA_SIZE cmd+name+float+float
+    # (1+member_size(heating_t, name)+member_size(heating_t, val)+member_size(heating_t, set))
     name_end = 1+10
     data_end = name_end+4+4
 
@@ -23,7 +32,9 @@ class ThUDP:
         self.cipher = Cipher(algorithms.AES(key), modes.CBC(iv))
 
     def prepare(self, cmd, zone, tval, tset):
-        msg = bytearray(self.data_end)
+        # including padding
+        size = AES_PADDED_SIZE(HEATING_DGRAM_SIZE(self.data_end, self.secret))
+        msg = bytearray(size)
 
         msg[0] = ord(args.type[0])
         msg[1:1+len(zone)] = zone
@@ -31,14 +42,15 @@ class ThUDP:
         if cmd == '!':
             msg[self.name_end:self.name_end+4] = struct.pack('f', tval)
             msg[self.name_end+4:self.name_end+4+4] = struct.pack('f', tset)
-        msg[self.data_end:self.data_end+len(secret)] = secret+b'\x00'
+        msg[self.data_end:self.data_end+len(secret)+1] = secret+b'\x00'
 
-        padder = padding.PKCS7(16*8).padder()
-        padded = padder.update(msg) + padder.finalize()
+        # zero padded
+        #padder = padding.PKCS7(16*8).padder()
+        #padded = padder.update(msg) + padder.finalize()
+        padded = msg
         enc = self.cipher.encryptor()
         data = enc.update(padded) + enc.finalize()
-        #self.BUFSIZE = len(data)
-        return data, padded
+        return data, bytes(padded)
 
     def bind(self, ip, port):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
@@ -51,12 +63,14 @@ class ThUDP:
         self.sock.sendto(data, (ip, port))
 
     def receive(self, validate=True):
-        BUFSIZE = self.data_end + len(self.secret)
-        BUFSIZE = ((BUFSIZE//32) + 1) * 32
+        #BUFSIZE = self.data_end + len(self.secret)
+        #BUFSIZE = ((BUFSIZE//32) + 1) * 32
+        BUFSIZE = AES_PADDED_SIZE(HEATING_DGRAM_SIZE(self.data_end, self.secret))
         renc, addr = self.sock.recvfrom(BUFSIZE)
-        print(addr)
         dec = self.cipher.decryptor()
         rdec = dec.update(renc) + dec.finalize()
+        #unpadder = padding.PKCS7(16*8).unpadder()
+        #rdec = unpadder.update(rdec) + unpadder.finalize()
         print('received ', rdec)
         val = struct.unpack('f', rdec[self.name_end:self.name_end+4])
         set = struct.unpack('f', rdec[self.name_end+4:self.name_end+4+4])
