@@ -36,13 +36,13 @@ class ThUDP:
         size = AES_PADDED_SIZE(HEATING_DGRAM_SIZE(self.data_end, self.secret))
         msg = bytearray(size)
 
-        msg[0] = ord(args.type[0])
-        msg[1:1+len(zone)] = zone
+        msg[0] = ord(cmd)
+        msg[1:1+len(zone)] = zone.encode('ascii')
 
         if cmd == '!':
             msg[self.name_end:self.name_end+4] = struct.pack('f', tval)
             msg[self.name_end+4:self.name_end+4+4] = struct.pack('f', tset)
-        msg[self.data_end:self.data_end+len(secret)+1] = secret+b'\x00'
+        msg[self.data_end:self.data_end+len(self.secret)+1] = self.secret+b'\x00'
 
         # zero padded
         #padder = padding.PKCS7(16*8).padder()
@@ -166,7 +166,7 @@ if __name__ == "__main__":
     secret = args.secret.encode('ascii')
     key = base64.b64decode(args.key)
     iv = base64.b64decode(args.iv)
-    zone = args.zone.encode('ascii')
+    zone = args.zone
 
     th = ThUDP(secret, key, iv)
     data, padded = th.prepare(args.type, zone, args.val, args.set)
