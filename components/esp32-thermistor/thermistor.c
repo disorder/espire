@@ -271,6 +271,8 @@ uint32_t thermistor_read_vout(thermistor_handle_t* th)
     adc_cali_handle_t cali = (th->adc_unit == ADC_UNIT_1)? cali_unit1 : cali_unit2;
     int values[NO_OF_SAMPLES];
 
+    adc_oneshot_config_channel(unit, th->channel, &config);
+
     // Use multiple samples to stabilize the measured value.
     for (int i = 0; i < NO_OF_SAMPLES; i++) {
         if (adc_oneshot_read(unit, th->channel, &value) == ESP_OK) {
