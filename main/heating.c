@@ -19,6 +19,7 @@ static const char *TAG = "heating";
 static list_t zones = {0};
 static char *heating_hc_url = NULL;
 static int hc_url_reload = 0;
+// last known status - 0 if globally off or API unavailable
 static int hc_status = 0;
 
 heating_t *heating_find(char *name, int create)
@@ -633,6 +634,7 @@ void heating_api_cb(http_request_t *req, int success)
 
     // it doesn't matter
     ESP_LOGI(TAG, "EBUS sent");
+    hc_status = 1;
     goto CLEANUP;
 
     if (esp_http_client_get_content_length(req->client) != req->bufsize) {

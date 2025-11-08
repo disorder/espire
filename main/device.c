@@ -283,7 +283,7 @@ void device_init(device_t *dev)
 #elif defined(LCD_ST7789_1) || defined(LCD_ST7789_2)
             tft_st7789_init(&oled);
 #endif
-        } else {
+        } else if (!esp.dev->controller) {
             // SPI currently conflicts with CO2 UART GPIO
             // this feature is currently just for testing CO2 sensor anyway
             co2_init();
