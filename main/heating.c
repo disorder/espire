@@ -51,19 +51,32 @@ heating_t *heating_find(char *name, int create)
         data->valid = xTaskGetTickCount();
         data->val = NAN;
         data->set = NAN;
+        data->fix = 0;
         for (int i=0; i<COUNT_OF(data->vals); i++)
             data->vals[i] = NAN;
         data->relay = -1;
         data->state = !HEATING_ON;
-        char key[5+member_size(heating_t, name)] = "tset.";
-        strncpy(key+5, data->name, strlen(data->name));
+
+        char skey[5+member_size(heating_t, name)] = "tset.";
+        strncpy(skey+5, data->name, strlen(data->name));
         size_t size = 0;
         char *set = NULL;
-        nv_read_str(key, &set, &size);
+        nv_read_str(skey, &set, &size);
         if (set != NULL) {
             data->set = strtof(set, NULL);
             free(set);
         }
+
+        char fkey[5+member_size(heating_t, name)] = "tfix.";
+        strncpy(fkey+5, data->name, strlen(data->name));
+        //size_t size = 0;
+        char *fix = NULL;
+        nv_read_str(fkey, &fix, &size);
+        if (fix != NULL) {
+            data->fix = strtof(fix, NULL);
+            free(fix);
+        }
+
         //temp_zone_init(name);
         list_prepend(&zones, data);
     }
@@ -180,6 +193,7 @@ heating_t *heating_temp_val(char *name, float val, int apply)
         if (!isnanf(data->vals[i]) && data->vals[i] < val)
             val = data->vals[i];
 
+    // displayed val is not last measurement but value used for action
     if (val != data->val)
         oled_update.temp = 1;
     data->prev = data->val;
@@ -224,6 +238,47 @@ heating_t *heating_temp_set(char *name, float set, int apply)
             heating_action(data);
     } else
         ESP_LOGI(TAG, "ignoring temp set '%s'=%.1f", name, set);
+    return data;
+}
+
+heating_t *heating_temp_fix(char *name, float fix, int apply)
+{
+    heating_t *data = heating_find(name, 1);
+    if (data == NULL)
+        return NULL;
+
+    if (isnanf(fix) || fix == data->fix)
+        return data;
+
+    ESP_LOGI(TAG, "saving temp fix '%s'=%.1f => %.1f", name, data->fix, fix);
+    // only "xx.x"
+    char key[5+member_size(heating_t, name)] = "tfix.";
+    strncpy(key+5, data->name, strlen(data->name));
+    // +1 char allow negative
+    char value[1+2+1+1 +1];
+    if (snprintf(value, sizeof(value), "%.1f", fix) > 0)
+        nv_write_str(key, value);
+
+    // update circular buffer
+    for (int i=0; i<data->c; i++)
+        if (!isnanf(data->vals[i]))
+            data->vals[i] += (fix - data->fix);
+
+    oled_update.temp = 1;
+    data->prev += (fix - data->fix);
+    data->val += (fix - data->fix);
+    data->fix = fix;
+    data->valid = xTaskGetTickCount();
+
+    // measuring was supposed to happen on controller
+    // but now measuring can be anywhere
+    if (temp_zone_find(data->name) != NULL) {
+        ESP_LOGW(TAG, "sending update '%s'=%.1f", data->name, data->val);
+        th_send('!', data->name, data->val, NAN);
+    }
+
+    if (apply)
+        heating_action(data);
     return data;
 }
 
@@ -589,9 +644,10 @@ void heating_api_cb(http_request_t *req, int success)
     // seeing NULL and 0 size
     //assert(req->buf != NULL);
 FAIL:
-    // TODO could have some data in the response or UDP updates?
+    // TODO could have some data in the response
     // this means if API is down, all relays should be off
     // we can't switch heating on/off so close everything
+    // if API returns 503 it also means heating is off
     hc_status = 0;
     iter_t iter = heating_iter();
     heating_t *data;
@@ -640,6 +696,10 @@ static void thermostat_aging(void *pvParameter)
                 // TODO send from here?
                 graphite_udp("zone.tval.", data->name, "espire", data->val, 1, 0);
                 graphite_udp("zone.tset.", data->name, "espire", data->set, 1, 0);
+                graphite_udp("zone.tfix.", data->name, "espire", data->fix, 1, 0);
+                if (data->c > 0) {
+                    graphite_udp("zone.temp", data->name, "espire", data->vals[HEATING_LAST_VAL_I(data)], 1, 0);
+                }
                 if (data->relay != -1)
                     graphite_udp("relay.", data->name, "espire", data->state == HEATING_ON, 1, 0);
             }

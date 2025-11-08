@@ -11,6 +11,7 @@ typedef struct {
     float vals[5];
     float val;
     float set;
+    float fix;
     int relay;
 
     time_t triggered;
@@ -19,10 +20,14 @@ typedef struct {
     TickType_t valid;
 } heating_t;
 
+// last measured value
+#define HEATING_LAST_VAL_I(data) ((data->i + COUNT_OF(data->vals) - 1) % COUNT_OF(data->vals))
+
 void thermostat_init();
 heating_t *heating_find(char *name, int create);
 heating_t *heating_temp_val(char *name, float val, int apply);
 heating_t *heating_temp_set(char *name, float set, int apply);
+heating_t *heating_temp_fix(char *name, float fix, int apply);
 int heating_hc_url_set(char *url);
 char *heating_hc_url_get();
 heating_t *heating_relay(char *name, int relay);

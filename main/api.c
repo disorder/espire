@@ -206,8 +206,18 @@ PRINT:
     heating_t *data;
     while ((iter = heating_next(iter, &data)) != NULL) {
         http_printf(req, "heating_relay=%s=%d\n", data->name, data->relay);
+        if (data->c > 0) {
+            int last = HEATING_LAST_VAL_I(data);
+            http_printf(req, "temp=%.1f\n", data->vals[last]);
+            http_printf(req, "vals=");
+            // from oldest to newest
+            for (int i=data->c - 1; i>=0; i--)
+                http_printf(req, "%.1f ", data->vals[(last+COUNT_OF(data->vals)-i) % COUNT_OF(data->vals)]);
+            http_printf(req, "\n");
+        }
         http_printf(req, "val=%.1f\n", data->val);
         http_printf(req, "set=%.1f\n", data->set);
+        http_printf(req, "fix=%.1f\n", data->fix);
         http_printf(req, "state=%d\n", data->state == HEATING_ON);
         http_printf(req, "triggered=%d\n", data->triggered);
         http_printf(req, "change=%d\n", data->change);
@@ -333,6 +343,12 @@ static esp_err_t api_heating_temp_set(httpd_req_t *req)
                 heating_temp_set(name, setf, 1);
                 httpd_resp_set_status(req, "200 OK");
             }
+
+            if (httpd_query_key_value(buf, "fix", (char *) temp, sizeof(temp)) == ESP_OK) {
+                float fixf = strtof(temp, NULL);
+                heating_temp_fix(name, fixf, 1);
+                httpd_resp_set_status(req, "200 OK");
+            }
        }
     }
 
@@ -344,11 +360,13 @@ static esp_err_t api_heating_temp_set(httpd_req_t *req)
             http_printf(req, "name=%s\n", data->name);
             http_printf(req, "val=%.1f\n", data->val);
             http_printf(req, "set=%.1f\n", data->set);
+            http_printf(req, "fix=%.1f\n", data->fix);
         }
     } else {
         http_printf(req, "name=%s\n", data->name);
         http_printf(req, "val=%.1f\n", data->val);
         http_printf(req, "set=%.1f\n", data->set);
+        http_printf(req, "fix=%.1f\n", data->fix);
     }
     */
 
