@@ -73,6 +73,33 @@ static void loglevel_handler(auto_handler_t *self, char *value)
     esp_log_level_set(name, atoi(value));
 }
 
+static void th_serial_r_handler(auto_handler_t *self, char *value)
+{
+    if (value == NULL)
+        return;
+
+    int gpio = atoi(value);
+    value = strchrnul(value, '=');
+    if (value[0] != '\0') {
+        value[0] = '\0';
+        value += 1;
+    }
+
+    u32_t r = atoi(value);
+    if (r <= 0)
+        return;
+
+    for (int i=0; i<COUNT_OF(ths); i++) {
+        if (ths[i].gpio == gpio) {
+            ths[i].serial_resistance = (float) r;
+            char key[] = "th.serial.XX";
+            if (snprintf(&key[10], 2+1, "%d", gpio) > 0)
+                nv_write_u32(key, r);
+            break;
+        }
+    }
+}
+
 static void temp_zone_adc_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
@@ -363,6 +390,10 @@ auto_handler_t default_handlers[] = {
     {
         .name = "hostname",
         .handler = hostname_handler,
+    },
+    {
+        .name = "th_serial_r",
+        .handler = th_serial_r_handler,
     },
     {
         .name = "temp_zone_adc",

@@ -219,7 +219,7 @@ static thermistor_t th_2k7 = {
 
 // NTC 4.7k MF52AT
 static thermistor_t th_4k7 = {
-    .serial_resistance = 2700,
+    .serial_resistance = 4700,
     .nominal_resistance = 4700,
     .nominal_temperature = 25,
     .beta_val = 3950,

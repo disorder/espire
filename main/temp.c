@@ -178,6 +178,13 @@ void temp_init_(int count, thermistor_t *th, char *label)
         gpio_set_direction(gpio, GPIO_MODE_INPUT);
         gpio_set_pull_mode(gpio, GPIO_FLOATING);
 
+        char key[] = "th.serial.XX";
+        u32_t r;
+        if (snprintf(&key[10], 2+1, "%d", gpio) > 0 &&
+            nv_read_u32(key, &r) == ESP_OK) {
+            th->serial_resistance = (float) r;
+        }
+
         ESP_ERROR_CHECK(thermistor_init(&ths[th_count], gpio, adc_unit, ch,
                                         th->serial_resistance, //CONFIG_SERIE_RESISTANCE,
                                         th->nominal_resistance, //CONFIG_NOMINAL_RESISTANCE,

@@ -5,6 +5,7 @@
 #include "module.h"
 #include "check.h"
 #include "heating.h"
+#include "thermistor.h"
 
 typedef struct {
     module_t module;
@@ -18,6 +19,7 @@ typedef struct {
 } th_zone_t;
 
 extern th_zone_t temp_zones[ADC1_CNT+ADC2_CNT];
+extern thermistor_handle_t ths[ADC1_CNT+ADC2_CNT];
 
 void temp_init_(int count, thermistor_t *th, char *label);
 #define temp_init(count, th) temp_init_(count, th, #th)
