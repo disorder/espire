@@ -248,6 +248,7 @@ device_t devices[] = {
         .controller = 0,
         .mac = "\x0C\xB8\x15\xEC\x95\x90",
         .hostname = "co2",
+        .co2 = 1,
         .metar = 1,
         .th_def_cnt = COUNT_OF(co2_defs),
         .th_defs = (th_def_t *) &co2_defs,
@@ -260,8 +261,8 @@ device_t devices[] = {
         .mac = (char *) &mac,
         .hostname = HOSTNAME_DEFAULT,
         .metar = 1,
-        .th_def_cnt = COUNT_OF(client_defs),
-        .th_defs = (th_def_t *) &client_defs,
+        //.th_def_cnt = COUNT_OF(client_defs),
+        //.th_defs = (th_def_t *) &client_defs,
     },
 };
 

@@ -22,6 +22,7 @@ typedef struct {
     int th_def_cnt;
     th_def_t *th_defs;
     int metar;
+    int co2;
 } device_t;
 
 typedef struct {
