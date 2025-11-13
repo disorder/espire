@@ -217,10 +217,13 @@ PRINT:
         }
         http_printf(req, "val=%.1f\n", data->val);
         http_printf(req, "set=%.1f\n", data->set);
-        http_printf(req, "fix=%.1f\n", data->fix);
-        http_printf(req, "state=%d\n", data->state == HEATING_ON);
-        http_printf(req, "triggered=%d\n", data->triggered);
-        http_printf(req, "change=%d\n", data->change);
+        if (esp.dev->controller) {
+            http_printf(req, "fix=%.1f\n", data->fix);
+            http_printf(req, "state=%d\n", data->state == HEATING_ON);
+            http_printf(req, "triggered=%d\n", data->triggered);
+            http_printf(req, "change=%d\n", data->change);
+            //http_printf(req, "relay=%d\n", data->relay);
+        }
     }
 
 CLEANUP:
@@ -287,9 +290,26 @@ static esp_err_t api_heating_temp_get(httpd_req_t *req)
                     goto CLEANUP;
                 } else {
                     // TODO curl: Illegal or missing hexadecimal sequence in chunked-encoding
-                    http_printf(req, "name=%s\n", data->name);
+                    http_printf(req, "heating_relay=%s=%d\n", data->name, data->relay);
+                    //http_printf(req, "name=%s\n", data->name);
+                    if (data->c > 0) {
+                        int last = HEATING_LAST_VAL_I(data);
+                        http_printf(req, "temp=%.1f\n", data->vals[last]);
+                        http_printf(req, "vals=");
+                        // from oldest to newest
+                        for (int i=data->c - 1; i>=0; i--)
+                            http_printf(req, "%.1f ", data->vals[(last+COUNT_OF(data->vals)-i) % COUNT_OF(data->vals)]);
+                        http_printf(req, "\n");
+                    }
                     http_printf(req, "val=%.1f\n", data->val);
                     http_printf(req, "set=%.1f\n", data->set);
+                    if (esp.dev->controller) {
+                        http_printf(req, "fix=%.1f\n", data->fix);
+                        http_printf(req, "state=%d\n", data->state == HEATING_ON);
+                        http_printf(req, "triggered=%d\n", data->triggered);
+                        http_printf(req, "change=%d\n", data->change);
+                        //http_printf(req, "relay=%d\n", data->relay);
+                    }
                 }
             } else {
                 httpd_resp_set_status(req, "400 Bad Request - name");
@@ -299,10 +319,26 @@ static esp_err_t api_heating_temp_get(httpd_req_t *req)
     } else {
         iter_t iter = heating_iter();
         while ((iter = heating_next(iter, &data)) != NULL) {
-            http_printf(req, "name=%s\n", data->name);
+            http_printf(req, "heating_relay=%s=%d\n", data->name, data->relay);
+            //http_printf(req, "name=%s\n", data->name);
+            if (data->c > 0) {
+                int last = HEATING_LAST_VAL_I(data);
+                http_printf(req, "temp=%.1f\n", data->vals[last]);
+                http_printf(req, "vals=");
+                // from oldest to newest
+                for (int i=data->c - 1; i>=0; i--)
+                    http_printf(req, "%.1f ", data->vals[(last+COUNT_OF(data->vals)-i) % COUNT_OF(data->vals)]);
+                http_printf(req, "\n");
+            }
             http_printf(req, "val=%.1f\n", data->val);
             http_printf(req, "set=%.1f\n", data->set);
-            http_printf(req, "relay=%d\n", data->relay);
+            if (esp.dev->controller) {
+                http_printf(req, "fix=%.1f\n", data->fix);
+                http_printf(req, "state=%d\n", data->state == HEATING_ON);
+                http_printf(req, "triggered=%d\n", data->triggered);
+                http_printf(req, "change=%d\n", data->change);
+                //http_printf(req, "relay=%d\n", data->relay);
+            }
         }
     }
 
