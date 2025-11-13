@@ -55,6 +55,8 @@ void module_offline(int timeout)
     iter_t iter = module_iter();
     module_t *m;
     while ((iter = module_next(iter, &m)) != NULL) {
+        if (m->disabled)
+            continue;
         if (m->offline) {
             if (!m->ntp || ntp_synced)
                 m->run(m, m->offline >= timeout);
@@ -68,6 +70,8 @@ void module_network(int connected)
     iter_t iter = module_iter();
     module_t *m;
     while ((iter = module_next(iter, &m)) != NULL) {
+        if (m->disabled)
+            continue;
         if (m->network) {
             if (!m->ntp || ntp_synced)
                 m->run(m, connected & m->network);
@@ -81,9 +85,21 @@ void module_ntp()
     iter_t iter = module_iter();
     module_t *m;
     while ((iter = module_next(iter, &m)) != NULL) {
+        if (m->disabled)
+            continue;
         if (m->ntp) {
             m->run(m, 1);
         }
     }
+}
+
+int module_state(module_t *module, int run)
+{
+    if (run == -1) {
+        module->disabled = 1;
+        run = 0;
+    } else
+        module->disabled = 0;
+    return run;
 }
 

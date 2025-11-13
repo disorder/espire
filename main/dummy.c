@@ -39,6 +39,8 @@ static void dummy_task(dummy_t *self)
 void dummy_run(dummy_t *self, int run)
 {
     assert(self != NULL);
+    run = module_state((module_t *) self, run);
+
     if (run) {
         if (self->module.state == 0) {
             // start

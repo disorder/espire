@@ -27,6 +27,7 @@ typedef struct {
 
 void oled_clock(int locked, char *date, char *time);
 void oled_temp(int locked, float room, float set, float mod);
+void oled_external(int locked, float val);
 void oled_metar(int locked, metar_t *metar, int bottom_line);
 void oled_bottom_scroll0(int locked, char *text);
 void oled_bottom_scroll1(int locked, char *text);

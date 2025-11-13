@@ -1,4 +1,5 @@
 #include "widgets.h"
+#include "heating.h"
 #include "metar.h"
 #include <math.h>
 #include <malloc.h>
@@ -203,6 +204,56 @@ void oled_temp(int locked, float room, float set, float mod)
         LVGL_EXIT();
 }
 
+static lv_obj_t *label = NULL, *temp = NULL;
+void oled_external(int locked, float val)
+{
+    if (oled.scr == NULL)
+        return;
+
+    if (!locked)
+        LVGL_ENTER(0);
+
+    if (temp == NULL) {
+        temp = lv_label_create(oled.scr);
+        assert(temp != NULL);
+        static lv_style_t style;
+        lv_style_init(&style);
+        lv_obj_add_style(temp, &style, 0);
+        lv_obj_set_width(temp, oled.w/2);
+        lv_obj_align(temp, LV_ALIGN_RIGHT_MID, 0, 2);
+        lv_obj_set_style_text_align(temp, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+        lv_label_set_text(temp, "");
+    }
+
+    if (label != NULL || temp != NULL) {
+        switch (oled_update.mode %= MODE_MAX) {
+        case HEATING:
+            if (label != NULL)
+                lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+            if (temp != NULL)
+                lv_obj_clear_flag(temp, LV_OBJ_FLAG_HIDDEN);
+            break;
+        default:
+            if (label != NULL)
+                lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+            if (temp != NULL)
+                lv_obj_add_flag(temp, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+    if (isnanf(val))
+        goto CLEANUP;
+
+    char ext[1+1+3+1+1+1];
+    // asterisk means external but only metar is integer
+    // TODO shmu temp?  only each hour but decimal
+    snprintf(ext, sizeof(ext), "*%.1f", val);
+    lv_label_set_text(temp, ext);
+
+CLEANUP:
+    if (!locked)
+        LVGL_EXIT();
+}
 // line from bottom = 2 if both scrollers are at the bottom
 void oled_metar(int locked, metar_t *metar, int bottom_line)
 {
@@ -211,47 +262,50 @@ void oled_metar(int locked, metar_t *metar, int bottom_line)
 
     if (!locked)
         LVGL_ENTER(0);
-    static lv_obj_t *label = NULL, *temp = NULL;
+    //static lv_obj_t *label = NULL, *temp = NULL;
 
     if (label == NULL) {
         label = lv_label_create(oled.scr);
         assert(label != NULL);
-        temp = lv_label_create(oled.scr);
-        assert(temp != NULL);
         static lv_style_t style;
         lv_style_init(&style);
         lv_style_set_text_font(&style, &small5x3);
         lv_obj_add_style(label, &style, 0);
-        lv_obj_add_style(temp, &style, 0);
+        if (temp == NULL) {
+            temp = lv_label_create(oled.scr);
+            assert(temp != NULL);
+            lv_obj_add_style(temp, &style, 0);
+            lv_obj_set_width(temp, oled.w/2);
+            lv_obj_align(temp, LV_ALIGN_RIGHT_MID, 0, 2);
+            lv_obj_set_style_text_align(temp, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
+            lv_label_set_text(temp, "");
+        }
 
         lv_obj_set_width(label, oled.w);
         lv_obj_align(label, LV_ALIGN_BOTTOM_RIGHT, 0, -7*bottom_line);
         lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
 
-        lv_obj_set_width(temp, oled.w/2);
-        lv_obj_align(temp, LV_ALIGN_RIGHT_MID, 0, 2);
-        lv_obj_set_style_text_align(temp, LV_TEXT_ALIGN_CENTER, LV_PART_MAIN);
         lv_label_set_text(label, "N/A");
-        lv_label_set_text(temp, "");
     }
 
-    if (label != NULL) {
+    if (label != NULL || temp != NULL) {
         switch (oled_update.mode %= MODE_MAX) {
         case HEATING:
-            lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_clear_flag(temp, LV_OBJ_FLAG_HIDDEN);
+            if (label != NULL)
+                lv_obj_clear_flag(label, LV_OBJ_FLAG_HIDDEN);
+            if (temp != NULL)
+                lv_obj_clear_flag(temp, LV_OBJ_FLAG_HIDDEN);
             break;
         default:
-            lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_add_flag(temp, LV_OBJ_FLAG_HIDDEN);
+            if (label != NULL)
+                lv_obj_add_flag(label, LV_OBJ_FLAG_HIDDEN);
+            if (temp != NULL)
+                lv_obj_add_flag(temp, LV_OBJ_FLAG_HIDDEN);
         }
     }
 
-    if (metar == NULL) {
-        if (!locked)
-            LVGL_EXIT();
-        return;
-    }
+    if (metar == NULL)
+        goto CLEANUP;
 
     static int last = 0;
     if (label != NULL && last != metar->last) {
@@ -276,6 +330,8 @@ void oled_metar(int locked, metar_t *metar, int bottom_line)
         buf += snprintf(buf, end-buf, " %d", metar->pressure);
         lv_label_set_text(label, data);
     }
+
+CLEANUP:
     if (!locked)
         LVGL_EXIT();
 }

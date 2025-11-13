@@ -346,6 +346,38 @@ static void pm_handler(auto_handler_t *self, char *value)
     esp.pm = atoi(value);
 }
 
+static void module_handler(auto_handler_t *self, char *value)
+{
+    if (value == NULL)
+        return;
+
+    char *name = value;
+    value = strchrnul(value, '=');
+    if (value[0] != '\0') {
+        value[0] = '\0';
+        value += 1;
+    }
+
+    int run = atoi(value);
+
+    iter_t iter = module_iter();
+    module_t *m;
+    char key[20] = "module.";
+    while ((iter = module_next(iter, &m)) != NULL) {
+        if (module_match_name(m, (char *) name)) {
+            m->run(m, run);
+            if (snprintf(&key[7], sizeof(key)-7, "%s", name) > 0)
+                nv_write_i8(key, (int8_t) run);
+            return;
+        }
+    }
+
+    // currently not a module
+    if (strncmp(name, "owm", 4) == 0) {
+        nv_write_i8("module.owm", (int8_t) run);
+    }
+}
+
 static void write_str_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
@@ -452,6 +484,10 @@ auto_handler_t default_handlers[] = {
     {
         .name = "pm",
         .handler = pm_handler,
+    },
+    {
+        .name = "module",
+        .handler = module_handler,
     },
 };
 

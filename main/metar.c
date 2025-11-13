@@ -1114,11 +1114,9 @@ void metar_task(metar_t *self)
 
 void metar_run(metar_t *self, int run)
 {
-    if (run && self->module.offline != 0)
-        if (ping_online.connected == 0 || !ntp_synced) {
-            return;
-        }
     assert(self != NULL);
+    run = module_state((module_t *) self, run);
+
     if (self->task == NULL) {
         assert(self->module.state == 0);
         if (run) {
@@ -1130,7 +1128,7 @@ void metar_run(metar_t *self, int run)
         assert(self->module.state != 0);
         if (!run && !self->module.stop) {
             ESP_LOGI(TAG, "stopping");
-            self->module.stop = 0;
+            self->module.stop = 1;
         }
     }
 }

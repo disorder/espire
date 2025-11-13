@@ -24,9 +24,11 @@ typedef struct {
     int power_toggle;
     int power_state;
     int invalidate;
+    float external;
     int temp;
     time_t temp_last;
     metar_t *metar;
+    time_t metar_last;
     char *owm;
     char *message;
 

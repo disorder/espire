@@ -17,6 +17,7 @@ typedef enum {
 typedef struct {
     module_type_t type;
     const char *name;
+    int disabled;
     // current state and request to stop
     int state;
     int stop;
@@ -44,5 +45,6 @@ int module_match_name(module_t *module, char *name);
 void module_offline(int timeout);
 void module_network(int connected);
 void module_ntp();
+int module_state(module_t *module, int run);
 
 #endif /* __API_H__ */

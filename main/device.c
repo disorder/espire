@@ -44,6 +44,7 @@ static const char *TAG = "dev";
 oled_update_t oled_update = {
     .temp_set = NAN,
     .temp_mod = NAN,
+    .external = NAN,
 };
 
 #include "esp_task_wdt.h"
@@ -84,6 +85,21 @@ static void oled_update_task(void *pvParameter)
             }
         }
 
+        // fallback to locally sourced external temperature if metar is old
+        time_t now_t;
+        time(&now_t);
+        // this will never replace stale value with NAN
+        if (!isnanf(oled_update.external) &&
+            (oled_update.metar == NULL && oled_update.metar_last + (30*60) <= now_t)) {
+            // initialize from external zone if available, then metar
+            //heating_t *zone = heating_find("external", 0);
+            //if (zone)
+            //    oled_external(0, zone->vals[HEATING_LAST_VAL_I(zone)]);
+            oled_external(0, oled_update.external);
+            oled_update.external = NAN;
+        } else if (oled_update.invalidate) {
+        }
+
         if (oled_update.metar != NULL) {
             metar_t *self = oled_update.metar;
             char *nl = strchrnul(self->buf, '\n');
@@ -94,6 +110,7 @@ static void oled_update_task(void *pvParameter)
             oled_bottom_scroll1(0, self->decoded);
             oled_metar(0, self, 2);
             oled_update.metar = NULL;
+            time(&oled_update.metar_last);
         } else if (oled_update.invalidate) {
             oled_bottom_scroll0(0, NULL);
             oled_bottom_scroll1(0, NULL);
@@ -402,11 +419,23 @@ void device_init(device_t *dev)
     auto_init();
     auto_run(NULL, 1);
 
+    int8_t run = 1;
     if (sizeof(METAR_LOCATION) != 0) {
-        metar_t *metar = metar_new(METAR_LOCATION, SHMU_STATION);
-        metar_run(metar, 1);
+        if (!esp.dev->controller) {
+            metar_t *metar = metar_new(METAR_LOCATION, SHMU_STATION);
+            run = 1;
+            nv_read_i8("module.metar", &run);
+            metar_run(metar, run);
+        }
     }
-    owm_init();
+
+    if (!esp.dev->controller) {
+        run = 1;
+        nv_read_i8("module.owm", &run);
+        // currently not module so only on boot
+        if (run == 1)
+            owm_init();
+    }
 
     // monitor memory leaks
     heap_init(lowmem_reboot);

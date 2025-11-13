@@ -185,6 +185,9 @@ heating_t *heating_temp_val(char *name, float val, int apply)
     if (data == NULL)
         return NULL;
 
+    if (strncmp(data->name, "external", member_size(heating_t, name)) == 0)
+        oled_update.external = val;
+
     // circular buffer, select lowest value
     data->vals[data->i] = val;
     data->i = (data->i + 1) % COUNT_OF(data->vals);
@@ -548,6 +551,7 @@ static void thermostat_udp(void *pvParameter)
                     iter = heating_next(iter, &data);
              }
         } else if (dec[0] == '!') {
+            // TODO this can be any zone... is that ok?
             time(&oled_update.temp_last);
             typeof(data->val) val = NAN;
             typeof(data->set) set;
@@ -579,6 +583,8 @@ static void thermostat_udp(void *pvParameter)
             if (!local) {
                 data->val = val;
                 data->set = set;
+                if (strncmp(data->name, "external", member_size(heating_t, name)) == 0)
+                    oled_update.external = data->val;
                 continue;
             }
 
