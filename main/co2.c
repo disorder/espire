@@ -224,7 +224,8 @@ void co2_task(void *pvParameter)
         if (co2_ppm != -1) {
             ESP_LOGI(TAG, "PPM: %d", co2_ppm);
             co2_send(co2_ppm);
-        }
+            graphite_udp("co2.", esp.dev->hostname, "espire", co2_ppm, 1, 0);
+       }
 
         //last_task = xTaskGetTickCount();
         //time(&last_task);

@@ -442,6 +442,7 @@ void device_init(device_t *dev)
 
     ota_main();
     thermostat_init();
+    graphite_init(NULL, 0);
 }
 
 void sleep_task(sleep_t *self)

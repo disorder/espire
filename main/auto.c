@@ -11,6 +11,8 @@
 #include "temp.h"
 #include "wifi.h"
 #include "ping.h"
+#include "api.h"
+#include "ota.h"
 
 #include "esp_wifi.h"
 #include "esp_log.h"
@@ -378,6 +380,13 @@ static void module_handler(auto_handler_t *self, char *value)
     }
 }
 
+static void ota_handler(auto_handler_t *self, char *value)
+{
+    if (value != NULL && strcmp(value, "force") == 0)
+        ota_force = 1;
+    api_ota(NULL);
+}
+
 static void write_str_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
@@ -489,6 +498,10 @@ auto_handler_t default_handlers[] = {
         .name = "module",
         .handler = module_handler,
     },
+    {
+        .name = "ota",
+        .handler = ota_handler,
+    },
 };
 
 // strict and simple format:
@@ -572,6 +585,10 @@ void config_apply(auto_t *self, char *buf, int bufsize, int commit, int auth)
             ESP_LOGD(TAG, "pair '%s'", name);
         }
         if (name != NULL) {
+            if (strcmp(name, "STOP") == 0) {
+                ESP_LOGI(TAG, "stopping");
+                break;
+            }
             if (!authorized && value != NULL && strcmp(name, "apikey") == 0) {
                 authorized = (strcmp(value, API_KEY) == 0);
                 continue;

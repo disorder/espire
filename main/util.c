@@ -488,6 +488,7 @@ static int g_sock_udp = -1;
 
 int graphite_init(char *host, int port)
 {
+    const char *TAG = "graphite";
     int ret = 0;
     uint16_t nv;
 
@@ -499,7 +500,6 @@ int graphite_init(char *host, int port)
                 ret = 1;
             }
     }
-    GRAPHITE_SA.sin_port = htons(port);
 
     if (host == NULL) {
         size_t size;
@@ -519,17 +519,25 @@ int graphite_init(char *host, int port)
         g_sock_udp = -1;
         xSemaphoreGive(esp.sockets);
     }
+
+    ESP_LOGI(TAG, "init: %s:%d: %d", (host)? host : GRAPHITE_IP_DEFAULT, port, ret);
     return ret;
 }
 
 int graphite_udp(char *prefix, char *metric, char *tag, float val, int now, time_t ts)
 {
+    const char *TAG = "graphite";
     int ret = 0;
     //WIFI_ADD(xTaskGetCurrentTaskHandle());
 
     if (g_sock_udp == -1) {
         graphite_init(NULL, 0);
-        xSemaphoreTake(esp.sockets, portMAX_DELAY);
+        // don't block
+        if (xSemaphoreTake(esp.sockets, 0/*S_TO_TICK(1)*/) == pdFALSE) {
+            ret = 4;
+            ESP_LOGE(TAG, "no sockets available");
+            goto CLEANUP;
+        }
         if ((g_sock_udp = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
             ESP_LOGE(TAG, "socket: %s", strerror(errno));
             xSemaphoreGive(esp.sockets);
@@ -544,9 +552,9 @@ int graphite_udp(char *prefix, char *metric, char *tag, float val, int now, time
         time_t now = ts;
         if (!now)
             time(&now);
-        len = snprintf(buf, sizeof(buf), "%s%s;tag1=%s %.2f %jd", prefix, metric, tag, val, now);
+        len = snprintf(buf, sizeof(buf), "%s%s;tag1=%s %.2f %jd\n", prefix, metric, tag, val, now);
     } else
-        len = snprintf(buf, sizeof(buf), "%s%s;tag1=%s %.2f", prefix, metric, tag, val);
+        len = snprintf(buf, sizeof(buf), "%s%s;tag1=%s %.2f\n", prefix, metric, tag, val);
 
     if (len < 0) {
         ESP_LOGE(TAG, "failed to format graphite data: %s%s, %s, %.2f, %d, %jd", prefix, metric, tag, val, now, ts);
@@ -554,7 +562,7 @@ int graphite_udp(char *prefix, char *metric, char *tag, float val, int now, time
         goto CLEANUP;
     }
 
-    ESP_LOGW(TAG, "%s", buf);
+    ESP_LOGI(TAG, "%s", buf);
     ssize_t s = sendto(g_sock_udp, &buf, len,
                        MSG_DONTWAIT, (struct sockaddr *) &GRAPHITE_SA, sizeof(GRAPHITE_SA));
     if (s == -1) {
