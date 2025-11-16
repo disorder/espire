@@ -19,15 +19,21 @@ int adc1_gpio[ADC1_CNT] = {
 };
 int adc2_gpio[ADC2_CNT] = {
     // ADC2 - used by wifi driver
-    25, 26, 27, 14, 12, 13,
+    25, 26, 27, 14, /*12,*/ 13,
     // ESP-WROVER-KIT: GPIO 0, 2, 4 and 15 cannot be used due to external connections for different purposes.
     // WROOM32 seems safe for 2 and 15; 4 and 0 seems bogus even disconnected
     // 15: must be HIGH during boot (works with thermistor)
-    2, 15,
+    /*2,*/ 15,
     // both bogus values out of the box and causing log flood after some time
     // 4: works without initialized wifi
     // 0: bad values even without wifi
-    4, 0,
+    4,
+    // GPIO_NUM_12 is the TDI pin of a ESP32 WROOM. The TDI pin can
+    // cause issues when the pin state change is messed with during
+    // boot and or program load.
+    12, // did not boot when connected
+    2, // bad measurement
+    0,
 };
 
 // 0 is no wifi used, 1 is strictly no ADC2, 2 is ADC2 with wifi disconnect

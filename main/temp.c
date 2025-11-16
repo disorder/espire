@@ -42,11 +42,13 @@ int adc1_ch[ADC1_CNT] = {
 };
 int adc2_ch[ADC2_CNT] = {
     // ADC2
-    8, 9, 7, 6, 5, 4,
+    8, 9, 7, 6, /*5,*/ 4,
     // not sure how safe are these
-    2, 3,
+    /*2,*/ 3,
     // bogus data, maybe usable with some sample filtering?
-    0, 1,
+    0,
+    5, 2, // gpio 12, 2
+    1,
 };
 
 static inline int adc1_channel_to_gpio(int channel)

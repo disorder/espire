@@ -191,7 +191,7 @@ void button_handler(button_t *b)
 
 th_def_t controller_defs[] = {
     {
-        .cnt = 10,
+        .cnt = 10+1,
         .th = &th_4k7,
         .label = "th_4k7",
     },
