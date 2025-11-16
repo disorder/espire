@@ -102,6 +102,40 @@ static void th_serial_r_handler(auto_handler_t *self, char *value)
     }
 }
 
+// useful for keeping fix in config
+static void temp_zone_fix_handler(auto_handler_t *self, char *value)
+{
+    if (value == NULL)
+        return;
+
+    char *name = value;
+    value = strchrnul(value, '=');
+    if (value[0] != '\0') {
+        value[0] = '\0';
+        value += 1;
+    }
+
+    float fixf = strtof(value, NULL);
+    heating_temp_fix(name, fixf, 1);
+}
+
+// only useful for initial configuration or one time set via config
+static void temp_zone_set_handler(auto_handler_t *self, char *value)
+{
+    if (value == NULL)
+        return;
+
+    char *name = value;
+    value = strchrnul(value, '=');
+    if (value[0] != '\0') {
+        value[0] = '\0';
+        value += 1;
+    }
+
+    float fixf = strtof(value, NULL);
+    heating_temp_set(name, fixf, 1);
+}
+
 static void temp_zone_adc_handler(auto_handler_t *self, char *value)
 {
     if (value == NULL)
@@ -435,6 +469,14 @@ auto_handler_t default_handlers[] = {
     {
         .name = "th_serial_r",
         .handler = th_serial_r_handler,
+    },
+    {
+        .name = "tfix",
+        .handler = temp_zone_fix_handler,
+    },
+    {
+        .name = "tset",
+        .handler = temp_zone_set_handler,
     },
     {
         .name = "temp_zone_adc",
