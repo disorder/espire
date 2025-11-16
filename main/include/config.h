@@ -29,7 +29,7 @@ extern uint16_t HEATING_UDP_PORT;
 #define HEATING_HC_URL_KEY "hc.url"
 
 #define HTTPD_SSL
-#define API_KEY "test"
+#define API_KEY CONFIG_ESP_API_KEY
 //#define CONFIG_ESP_CONTROLLER_IP "127.0.0.1"
 extern char CONTROLLER_IP[15+1];
 extern struct sockaddr_in CONTROLLER_SA;
